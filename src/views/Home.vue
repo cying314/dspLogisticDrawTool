@@ -2,26 +2,57 @@
   <div class="main">
     <div class="wrap">
       <ScrollCard>
-        <ScrollCardItem name="上传图片">
-          <el-upload
-            :class="['upload-wrap', { hasImage: fileList.length > 0 }]"
-            drag
-            action
-            :auto-upload="false"
-            :limit="1"
-            :file-list="fileList"
-            :before-remove="beforeRemove"
-            :on-remove="handelOnRemove"
-            :on-change="handelOnChange"
-            accept=".jpg, .png"
-          >
-            <i class="el-icon-upload"></i>
-            <div class="el-upload__text">
-              将文件拖到此处，或
-              <em>点击上传</em>
-            </div>
-            <div class="el-upload__tip" slot="tip">*只能上传jpg/png文件</div>
-          </el-upload>
+        <ScrollCardItem name="导入原图">
+          <el-radio-group style="margin-bottom:10px" v-model="importForm.importType" @change="changeImportType">
+            <el-radio label="image">上传图片</el-radio>
+            <el-radio label="text">文本生图</el-radio>
+          </el-radio-group>
+          <!-- 上传图片 -->
+          <template v-if="importForm.importType=='image'">
+            <el-upload
+              :class="['upload-wrap', { hasImage: fileList.length > 0 }]"
+              drag
+              action
+              :auto-upload="false"
+              :limit="1"
+              :file-list="fileList"
+              :on-remove="handelOnRemove"
+              :on-change="handelOnChange"
+              accept=".jpg, .png"
+            >
+              <i class="el-icon-upload"></i>
+              <div class="el-upload__text">
+                将文件拖到此处，或
+                <em>点击上传</em>
+              </div>
+              <div class="el-upload__tip" slot="tip">*只能上传jpg/png文件</div>
+            </el-upload>
+          </template>
+          <!-- 文本生图 -->
+          <template v-else-if="importForm.importType=='text'">
+            <el-input type="textarea" v-model="importForm.text" :autosize="{ minRows: 5, maxRows: 10 }" placeholder="请输入文本"></el-input>
+            <el-form class="importForm" inline size="small">
+              <el-form-item label="字号：">
+                <el-select v-model="importForm.fontSize">
+                  <el-option v-for="num in 30" :key="num" :value="num" :label="num+'pt'"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="对齐：">
+                <el-select v-model="importForm.textAlign">
+                  <el-option label="左对齐" value="left"></el-option>
+                  <el-option label="居中对齐" value="center"></el-option>
+                  <el-option label="右对齐" value="right"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="颜色：">
+                <el-color-picker v-model="importForm.color" @change="changColor"></el-color-picker>
+              </el-form-item>
+              <el-form-item label="字体：">
+                <el-button size="mini" icon="el-icon-upload2">上传字体</el-button>
+              </el-form-item>
+            </el-form>
+            <el-button type="primary" size="small" @click="textToImage">生成图片</el-button>
+          </template>
         </ScrollCardItem>
         <ScrollCardItem name="渲染预览" :hide="!imgLoaded">
           <div class="preview">
@@ -74,7 +105,7 @@
                   <input class="el-input__inner" type="number" :min="MIN_SIZE" :max="MAX_SIZE" autocomplete="off" v-model.lazy="comHeight" />
                 </div>
               </el-form-item>
-              <el-button class="refreshBtn" type="text" icon="el-icon-refresh-left" @click="comWidth=50"></el-button>
+              <el-button class="refreshBtn" type="text" icon="el-icon-refresh-left" @click="resetComWidth"></el-button>
             </div>
             <el-form-item label="缩放：" prop="scale" :rules="rules.changeNotNull">
               <el-slider v-model="settingForm.scale" :disabled="!comWidth" :step="0.01" step-strictly :format-tooltip="formatTooltip" :min="0" :max="maxScale"></el-slider>
@@ -146,6 +177,7 @@ import * as Parser from "@/utils/parser";
 import * as Util from "@/utils/index.js";
 const MIN_SIZE = 1;
 const MAX_SIZE = 1000;
+const DEFAULT_WIDTH = 50; // 图片默认生成宽度
 const RENDER_MODE = {
   belt_tilt: {
     bw: "黑白",
@@ -177,6 +209,16 @@ export default {
       MAX_SIZE: MAX_SIZE,
       ALL_RENDER_MODE: ALL_RENDER_MODE,
       GENERATE_MODE: GENERATE_MODE,
+      importForm: {
+        importType: "image", // 导入模式 image:上传图片 text:文本生图
+        text: "",
+        fontSize: 9,
+        textAlign: "left",
+        color: "#000",
+        width: null, // 初始图像大小
+        height: null,
+        image: null, // 原始图像 Image
+      },
       /**
        * @typedef SettingForm
        * @property {string} renderMode 渲染模式 @see RENDER_MODE
@@ -189,16 +231,13 @@ export default {
        */
       /** @type SettingForm */
       settingForm: {
-        renderMode: "bw",
+        renderMode: "gray",
         threshold: 128,
         contrast: 0,
         brightness: 0,
         generateMode: "belt_tilt",
         z: 0,
       },
-      width: null, // 初始图像大小
-      height: null,
-      image: null, // 元素图像 Image
       imgLoaded: false, // 加载图像
       cfgLoaded: false, // 加载配置
       config: {
@@ -244,27 +283,29 @@ export default {
     },
     comWidth: {
       set(newValue) {
+        if (!this.importForm.width) return;
         newValue = this.limitSize(newValue);
-        this.settingForm.scale = newValue / this.width;
+        this.settingForm.scale = newValue / this.importForm.width;
       },
       get() {
-        if (!this.width) return null;
-        return this.limitSize(this.width * this.settingForm.scale);
+        if (!this.importForm.width) return null;
+        return this.limitSize(this.importForm.width * this.settingForm.scale);
       },
     },
     comHeight: {
       set(newValue) {
+        if (!this.importForm.height) return;
         newValue = this.limitSize(newValue);
-        this.settingForm.scale = newValue / this.height;
+        this.settingForm.scale = newValue / this.importForm.height;
       },
       get() {
-        if (!this.height) return null;
-        return this.limitSize(this.height * this.settingForm.scale);
+        if (!this.importForm.height) return null;
+        return this.limitSize(this.importForm.height * this.settingForm.scale);
       },
     },
     maxScale() {
-      if (!this.height || !this.width) return 0;
-      return Math.min(MAX_SIZE / this.width, MAX_SIZE / this.height) + 0.01;
+      if (!this.importForm.height || !this.importForm.width) return 0;
+      return Math.min(MAX_SIZE / this.importForm.width, MAX_SIZE / this.importForm.height) + 0.01;
     },
     renderOptions() {
       let options = RENDER_MODE[this.settingForm.generateMode] || {};
@@ -293,9 +334,9 @@ export default {
       this.loadingPct = 0;
     },
     init() {
-      this.width = null;
-      this.height = null;
-      this.image = null;
+      this.importForm.width = null;
+      this.importForm.height = null;
+      this.importForm.image = null;
       this.imgLoaded = false;
       this.cfgLoaded = false;
       this.config = {};
@@ -303,15 +344,15 @@ export default {
       this.afterBase64 = null;
       this.blueprintTxt = null;
     },
+    changeImportType() {
+      this.fileList = [];
+      this.init();
+    },
     // 上传图片start
     handelOnChange(file, fileList) {
       this.fileList = fileList;
       if (!["image/jpeg", "image/png"].includes(file.raw.type)) {
-        this.$notify({
-          message: "上传失败，请上传jpg/png格式的文件",
-          type: "warning",
-          title: "警告",
-        });
+        Util._warn("上传失败，请上传jpg/png格式的文件");
         this.handelOnRemove(file);
         return;
       }
@@ -322,31 +363,73 @@ export default {
       this.fileList = this.fileList.filter((item) => item.uid != file.raw.uid);
       this.init();
     },
-    beforeRemove(file) {
-      return this.$confirm(`确定移除 ${file.name}？`).then(() => {
-        this.init();
-      });
-    },
-    // 上传图片end
+    // beforeRemove(file) {
+    //   return this.$confirm(`确定移除 ${file.name}？`).then(() => {
+    //     this.init();
+    //   });
+    // },
     loadImage(file) {
       const reader = new FileReader();
       this.showLoading();
       reader.onload = (event) => {
         const image = new Image();
+        image.src = event.target.result;
         image.onload = () => {
-          this.width = image.width;
-          this.height = image.height;
-          this.comWidth = 50; // 默认生成宽度
+          this.importForm.width = image.width;
+          this.importForm.height = image.height;
+          this.comWidth = DEFAULT_WIDTH; // 默认生成宽度
           this.imgLoaded = true;
           this.hideLoading();
           this.$nextTick(() => {
             this.render();
           });
         };
-        image.src = event.target.result;
-        this.image = image;
+        this.importForm.image = image;
       };
       reader.readAsDataURL(file.raw);
+    },
+    // 上传图片end
+    // 文本生图start
+    changColor(val) {
+      if (!val) {
+        this.$set(this.importForm, "color", "#000000");
+      }
+    },
+    textToImage() {
+      let { text, fontSize, textAlign, color } = this.importForm;
+      if (!text) {
+        return Util._warn("请输入文本！");
+      }
+      this.init();
+      this.showLoading();
+      Util.textToBase64({ content: text, fontSize, textAlign, color })
+        .then((base64) => {
+          const image = new Image();
+          image.src = base64;
+          image.onload = () => {
+            this.importForm.width = image.width;
+            this.importForm.height = image.height;
+            this.comWidth = this.importForm.width; // 默认生成宽度为文本宽度
+            this.imgLoaded = true;
+            this.hideLoading();
+            this.$nextTick(() => {
+              this.render();
+            });
+          };
+          this.importForm.image = image;
+        })
+        .catch((e) => {
+          Util._err("文本生成图片异常", e);
+          this.hideLoading();
+        });
+    },
+    // 文本生图end
+    resetComWidth() {
+      if (this.importForm.importType === "text") {
+        this.comWidth = this.importForm.width;
+      } else {
+        this.comWidth = DEFAULT_WIDTH;
+      }
     },
     loadConfig() {
       this.config = {
@@ -371,13 +454,13 @@ export default {
       });
     },
     async render() {
-      if (!this.imgLoaded || this.image == null) {
+      if (!this.imgLoaded || this.importForm.image == null) {
         return Util._warn("请先上传图片");
       }
       this.loadConfig();
       this.showLoading("渲染中", true);
       try {
-        const image = this.image;
+        const image = this.importForm.image;
         const mode = this.config.form.renderMode;
         let canvas = document.createElement("canvas");
         let context = canvas.getContext("2d");
@@ -393,22 +476,18 @@ export default {
 
         // after
         let imgData = context.getImageData(0, 0, w, h);
+        const _progress = this.handleLoadingProgress;
         const { threshold, contrast, brightness } = this.config.form;
         if (mode == "bw") {
-          Util.handleBlackWhite(imgData, threshold, false);
+          await Util.handleBlackWhite(imgData, threshold, false, _progress);
         } else if (mode == "monitor_bw") {
-          Util.handleBlackWhite(imgData, threshold, true);
+          await Util.handleBlackWhite(imgData, threshold, true, _progress);
         } else if (mode == "gray") {
-          Util.handleGray(imgData, contrast, brightness);
+          await Util.handleGray(imgData, contrast, brightness, _progress);
         } else if (mode == "monitor_gray") {
-          Util.handleMonitorGray(imgData, contrast, brightness);
+          await Util.handleMonitorGray(imgData, contrast, brightness, _progress);
         } else if (mode == "monitor_color_euclid") {
-          await Util.handleMonitorColorEuclid(
-            imgData,
-            contrast,
-            brightness,
-            this.handleLoadingProgress
-          );
+          await Util.handleMonitorColorEuclid(imgData, contrast, brightness, _progress);
         }
         context.putImageData(imgData, 0, 0);
         this.afterBase64 = canvas.toDataURL();
@@ -419,12 +498,12 @@ export default {
         this.hideLoading();
       }
     },
-    handleLoadingProgress(fn, percentage) {
+    handleLoadingProgress(fn, percentage, step = 5) {
       return new Promise((resolve) => {
         fn();
-        if (percentage - this.loadingPct >= 5) {
+        if (percentage - this.loadingPct >= step) {
           this.loadingPct = percentage;
-          requestAnimationFrame(resolve); // 每5%断开串行避免阻塞
+          requestAnimationFrame(resolve); // 每step%断开串行避免阻塞
         } else {
           resolve();
         }
@@ -631,6 +710,13 @@ export default {
         margin: 0;
         user-select: none;
       }
+    }
+  }
+  .importForm {
+    margin-top: 10px;
+    .el-input,
+    .el-select {
+      width: 120px;
     }
   }
   .preview {

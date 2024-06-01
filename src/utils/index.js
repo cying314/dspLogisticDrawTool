@@ -7,6 +7,7 @@ import {
   colorIndexMap,
   rgbToHex,
 } from "@/data/monitorColor.js";
+import html2canvas from "./html2canvas";
 
 /**
  * 使元素动画滚动到指定高度
@@ -117,6 +118,43 @@ export function _prompt(title, inputValue, otherOption = {}) {
 }
 
 /**
+ * 根据文本生成base64图片
+ */
+export async function textToBase64({
+  content = "",
+  textAlign = "center",
+  fontSize = 9,
+  lineHeight,
+  color = "#000",
+  fontFamily = "microsoft yahei",
+} = {}) {
+  lineHeight ??= fontSize + 1;
+  const span = document.createElement("span");
+  span.textContent = content;
+  span.style.textAlign = textAlign;
+  span.style.fontSize = fontSize + "pt";
+  span.style.lineHeight = lineHeight + "pt";
+  span.style.color = color;
+  span.style.fontFamily = fontFamily;
+
+  span.style.whiteSpace = "pre";
+  span.style.position = "fixed";
+  // 解决文本顶部被截断的问题
+  let space = fontSize / 6 + "pt";
+  span.style.padding = ` ${space} 0 0 0`;
+
+  document.body.appendChild(span);
+  try {
+    const canvas = await html2canvas(span, {
+      scale: 1,
+    });
+    return canvas.toDataURL();
+  } finally {
+    document.body.removeChild(span);
+  }
+}
+
+/**
  * 保存字符串为txt文件
  * @param {string} content 内容字符串
  * @param {string} fileName 文件名
@@ -131,16 +169,22 @@ export function saveAsTxt(content, fileName = "默认", fileSuffix = "txt") {
  * @param {number} threshold 阈值(0 - 255)
  * @param {boolean} isMonitor 是否流速器（流速器颜色表中没有黑色，最深色号为#030303）
  */
-export function handleBlackWhite(imgData, threshold, isMonitor = false) {
+export async function handleBlackWhite(imgData, threshold, isMonitor = false, _progress) {
   for (let i = 0; i < imgData.data.length; i += 4) {
-    // 获取灰度
-    var gray = getGray(imgData.data[i], imgData.data[i + 1], imgData.data[i + 2]);
-    // 基于阈值转为黑白
-    if (gray > threshold) {
-      imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = 255;
-    } else {
-      imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = isMonitor ? 3 : 0;
-    }
+    await _progress(
+      () => {
+        // 获取灰度
+        var gray = getGray(imgData.data[i], imgData.data[i + 1], imgData.data[i + 2]);
+        // 基于阈值转为黑白
+        if (gray > threshold) {
+          imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = 255;
+        } else {
+          imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = isMonitor ? 3 : 0;
+        }
+      },
+      Math.round((i / imgData.data.length) * 100),
+      10
+    );
   }
 }
 
@@ -149,20 +193,22 @@ export function handleBlackWhite(imgData, threshold, isMonitor = false) {
  * @param {number} contrast 对比度(-255 - 255)
  * @param {number} brightness 亮度度(-255 - 255)
  */
-export function handleGray(imgData, contrast, brightness) {
+export async function handleGray(imgData, contrast, brightness, _progress) {
   const d = (259 * (contrast + 255)) / (255 * (259 - contrast));
   for (let i = 0; i < imgData.data.length; i += 4) {
-    // 转为灰度图
-    var gray = getGray(imgData.data[i], imgData.data[i + 1], imgData.data[i + 2]);
-    // 调整对比度
-    if (contrast != 0) {
-      gray = truncateColor((gray - 128) * d + 128);
-    }
-    // 调整亮度
-    if (brightness != 0) {
-      gray = truncateColor(gray + brightness);
-    }
-    imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = gray;
+    await _progress(() => {
+      // 转为灰度图
+      var gray = getGray(imgData.data[i], imgData.data[i + 1], imgData.data[i + 2]);
+      // 调整对比度
+      if (contrast != 0) {
+        gray = truncateColor((gray - 128) * d + 128);
+      }
+      // 调整亮度
+      if (brightness != 0) {
+        gray = truncateColor(gray + brightness);
+      }
+      imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = gray;
+    }, Math.round((i / imgData.data.length) * 100));
   }
 }
 
@@ -189,27 +235,33 @@ function findClosestNum(arr, target) {
  * @param {number} contrast 对比度(-255 - 255)
  * @param {number} brightness 亮度度(-255 - 255)
  */
-export function handleMonitorGray(imgData, contrast, brightness) {
+export async function handleMonitorGray(imgData, contrast, brightness, _progress) {
   const d = (259 * (contrast + 255)) / (255 * (259 - contrast));
   for (let i = 0; i < imgData.data.length; i += 4) {
-    // 转为灰度图
-    var gray = getGray(imgData.data[i], imgData.data[i + 1], imgData.data[i + 2]);
-    // 调整对比度
-    if (contrast != 0) {
-      gray = truncateColor((gray - 128) * d + 128);
-    }
-    // 调整亮度
-    if (brightness != 0) {
-      gray = truncateColor(gray + brightness);
-    }
-    if (gray === 0) {
-      // 优化匹配黑色效率（流速器颜色表中没有黑色，最深色号为#030303）
-      gray = 3;
-    } else if (!Object.prototype.hasOwnProperty.call(grayColorIndexMap, gray)) {
-      // 流速器灰度中没有匹配的灰度，则找到最接近的灰度
-      gray = findClosestNum(grayColorIndexs, gray);
-    }
-    imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = gray;
+    await _progress(
+      () => {
+        // 转为灰度图
+        var gray = getGray(imgData.data[i], imgData.data[i + 1], imgData.data[i + 2]);
+        // 调整对比度
+        if (contrast != 0) {
+          gray = truncateColor((gray - 128) * d + 128);
+        }
+        // 调整亮度
+        if (brightness != 0) {
+          gray = truncateColor(gray + brightness);
+        }
+        if (gray === 0) {
+          // 优化匹配黑色效率（流速器颜色表中没有黑色，最深色号为#030303）
+          gray = 3;
+        } else if (!Object.prototype.hasOwnProperty.call(grayColorIndexMap, gray)) {
+          // 流速器灰度中没有匹配的灰度，则找到最接近的灰度
+          gray = findClosestNum(grayColorIndexs, gray);
+        }
+        imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = gray;
+      },
+      Math.round((i / imgData.data.length) * 100),
+      10
+    );
   }
 }
 
