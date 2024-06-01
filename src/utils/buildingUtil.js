@@ -58,8 +58,15 @@ export async function generateBlueprint(imgData, config, _progress) {
 function createbuildings(imgData, config, _progress) {
   const generateMode = config.form.generateMode;
   const renderMode = config.form.renderMode;
-  if (generateMode === "belt_tilt") {
+  if (generateMode === "belt_horiz") {
+    if (renderMode == "bw") {
+      return generateHorizBeltBWScreen(imgData, config, _progress);
+    } else if (renderMode == "gray") {
+      return generateHorizBeltGrayScreen(imgData, config, _progress);
+    }
+  } else if (generateMode === "belt_verti") {
     return [];
+    // return generateVertiBeltScreen(imgData, config, _progress);
   } else if (generateMode === "monitor") {
     if (renderMode === "monitor_bw" || renderMode === "monitor_gray") {
       return generateMonitorGrayScreen(imgData, config, _progress);
@@ -71,24 +78,116 @@ function createbuildings(imgData, config, _progress) {
 }
 
 /**
+ * 水平带屏
+ */
+async function generateHorizBeltGrayScreen(imgData, config, _progress) {
+  let buildings = [];
+  const width = +config.width;
+  const height = +config.height;
+  const space = +config.form.space;
+  const z = +config.form.z;
+  let index = 0;
+  for (let i = 0; i < imgData.data.length; i += 4) {
+    await _progress(() => {
+      let x = width - ((i / 4) % width) - 1;
+      let y = Math.floor(i / 4 / width);
+      let gray = imgData.data[i];
+      let tilt = 179 - Math.round((gray / 255) * 179);
+      let nextBeltIdx;
+      if (x % 2 == 0) {
+        if (y == height - 1) {
+          nextBeltIdx = x == 0 ? -1 : index + 1;
+        } else {
+          nextBeltIdx = index + width;
+        }
+      } else {
+        if (y == 0) {
+          nextBeltIdx = x == 0 ? -1 : index + 1;
+        } else {
+          nextBeltIdx = index - width;
+        }
+      }
+      buildings.push(
+        createBelt({
+          index: index++,
+          offset: [x * space, y * space, z],
+          tilt,
+          nextBeltIdx,
+        })
+      );
+    }, Math.round((i / imgData.data.length) * 100));
+  }
+  return buildings;
+}
+
+/**
+ * 水平二值化带屏
+ */
+async function generateHorizBeltBWScreen(imgData, config, _progress) {
+  let buildings = [];
+  const width = +config.width;
+  const height = +config.height;
+  const space = +config.form.space;
+  const z = +config.form.z;
+  let index = 0;
+  for (let i = 0; i < imgData.data.length; i += 4) {
+    await _progress(() => {
+      let x = width - ((i / 4) % width) - 1;
+      let y = Math.floor(i / 4 / width);
+      let gray = imgData.data[i];
+      let tilt = gray > 128 ? 0 : 179;
+      let nextBeltIdx;
+      if (x % 2 == 0) {
+        if (y == 0) {
+          nextBeltIdx = x == width - 1 ? -1 : index - 1;
+        } else {
+          nextBeltIdx = index - width;
+        }
+      } else {
+        if (y == height - 1) {
+          nextBeltIdx = x == width - 1 ? -1 : index - 1;
+        } else {
+          nextBeltIdx = index + width;
+        }
+      }
+      buildings.push(
+        createBelt({
+          index: index++,
+          offset: [x * space, y * space, z],
+          tilt,
+          nextBeltIdx,
+        })
+      );
+    }, Math.round((i / imgData.data.length) * 100));
+  }
+  return buildings;
+}
+
+/**
+ * 垂直带屏
+ */
+// async function generateVertiBeltScreen(imgData, config, _progress) {}
+
+/**
  * 生成流速器灰度屏
  */
 async function generateMonitorGrayScreen(imgData, config, _progress) {
   let buildings = [];
+  const width = +config.width;
+  const space = +config.form.space;
+  const z = +config.form.z;
   let index = 0;
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(() => {
-      let x = (config.width - ((i / 4) % config.width) - 1) * config.form.space;
-      let y = Math.floor(i / 4 / config.width) * config.form.space;
+      let x = (width - ((i / 4) % width) - 1) * space;
+      let y = Math.floor(i / 4 / width) * space;
       let gray = imgData.data[i];
       // 转为颜色表中的灰度
       gray = ImageUtil.findClosestGary(gray);
       // 转为颜色索引
       let colorIndex = grayColorIndexMap.get(gray);
-      buildings.push(
-        createMonitor({ index: index++, offset: [x, y, config.form.z], colorId: colorIndex })
-      );
-      buildings.push(createBelt({ index: index++, offset: [x, y, config.form.z] }));
+      buildings.push(createMonitor({ index: index++, offset: [x, y, z], colorId: colorIndex }));
+      buildings.push(createBelt({ index: index++, offset: [x, y, z] }));
     }, Math.round((i / imgData.data.length) * 100));
   }
   return buildings;
@@ -99,11 +198,14 @@ async function generateMonitorGrayScreen(imgData, config, _progress) {
  */
 async function generateMonitorColorScreen(imgData, config, _progress) {
   let buildings = [];
+  const width = +config.width;
+  const space = +config.form.space;
+  const z = +config.form.z;
   let index = 0;
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(() => {
-      let x = (config.width - ((i / 4) % config.width) - 1) * config.form.space;
-      let y = Math.floor(i / 4 / config.width) * config.form.space;
+      let x = (width - ((i / 4) % width) - 1) * space;
+      let y = Math.floor(i / 4 / width) * space;
       let [r, g, b] = imgData.data.slice(i, i + 3);
       let hex = rgbToHex(r, g, b);
       let colorIndex;
@@ -113,10 +215,8 @@ async function generateMonitorColorScreen(imgData, config, _progress) {
         // 流速器颜色表中没有直接匹配的颜色，则找到最接近的颜色
         colorIndex = ImageUtil.closestColorIndex([r, g, b]);
       }
-      buildings.push(
-        createMonitor({ index: index++, offset: [x, y, config.form.z], colorId: colorIndex })
-      );
-      buildings.push(createBelt({ index: index++, offset: [x, y, config.form.z] }));
+      buildings.push(createMonitor({ index: index++, offset: [x, y, z], colorId: colorIndex }));
+      buildings.push(createBelt({ index: index++, offset: [x, y, z] }));
     }, Math.round((i / imgData.data.length) * 100));
   }
   return buildings;
@@ -127,14 +227,14 @@ async function generateMonitorColorScreen(imgData, config, _progress) {
  * @param {Object} opt
  * @param {number} opt.index 索引
  * @param {number[]} opt.offset 偏移 [x,y,z]
- * @param {number[]} opt.prevBeltIdx 上一个传送带索引（输入）
+ * @param {number[]} opt.tilt 倾斜
  * @param {number[]} opt.nextBeltIdx 下一个传送带索引（输出）
  * @return {BuildingItem}
  */
 export function createBelt({
   index = 0,
   offset: [x = 0, y = 0, z = 0] = [],
-  prevBeltIdx = -1,
+  tilt = 0,
   nextBeltIdx = -1,
 } = {}) {
   return {
@@ -145,11 +245,12 @@ export function createBelt({
       { x, y, z },
     ],
     yaw: [0, 0],
+    tilt: tilt,
     itemId: 2003, // 蓝带
     modelIndex: 37,
     outputObjIdx: nextBeltIdx,
-    outputToSlot: 0,
-    inputObjIdx: prevBeltIdx,
+    outputToSlot: nextBeltIdx == -1 ? 0 : 1,
+    inputObjIdx: -1,
     inputFromSlot: 0,
     outputFromSlot: 0,
     inputToSlot: 1,
@@ -182,6 +283,7 @@ export function createMonitor({
       { x, y, z },
     ],
     yaw: [0, 0],
+    tilt: 0,
     itemId: 2030,
     modelIndex: 208,
     outputObjIdx: -1,

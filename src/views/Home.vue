@@ -93,21 +93,19 @@
           </template>
           <el-form ref="settingFormRef" :model="settingForm" label-width="95px" size="small" hide-required-asterisk>
             <div class="flexInputWrap">
-              <el-form-item label="宽：">
-                <div class="el-input el-input--small">
-                  <input class="el-input__inner" type="number" :min="MIN_SIZE" :max="MAX_SIZE" autocomplete="off" v-model.lazy="comWidth" />
-                </div>
+              <el-form-item label="宽：" prop="comWidth" :rules="rules.blurNotNull">
+                <el-input type="number" v-model.lazy="settingForm.comWidth" @change="changeComWidth($event)"></el-input>
               </el-form-item>
-              <i class="el-icon-link"></i>
-              <el-form-item label="长：">
-                <div class="el-input el-input--small">
-                  <input class="el-input__inner" type="number" :min="MIN_SIZE" :max="MAX_SIZE" autocomplete="off" v-model.lazy="comHeight" />
-                </div>
+              <div class="fixedRatioBtn" title="固定比例" @click="changeFixedRatio">
+                <i :class="settingForm.fixedRatio?'el-icon-link':'if-icon-unlink'"></i>
+              </div>
+              <el-form-item label="长：" prop="comHeight" :rules="rules.blurNotNull">
+                <el-input type="number" v-model.lazy="settingForm.comHeight" @change="changeComHeight($event)"></el-input>
               </el-form-item>
-              <el-button class="refreshBtn" type="text" icon="el-icon-refresh-left" @click="resetComWidth"></el-button>
+              <el-button class="refreshBtn" type="text" icon="el-icon-refresh-left" @click="resetComSize"></el-button>
             </div>
             <el-form-item label="缩放：" prop="scale" :rules="rules.changeNotNull">
-              <el-slider v-model="settingForm.scale" :disabled="!comWidth" :step="0.01" step-strictly :format-tooltip="formatTooltip" :min="0" :max="maxScale"></el-slider>
+              <el-slider v-model="settingForm.scale" :disabled="!settingForm.fixedRatio" :step="0.01" step-strictly :format-tooltip="formatTooltip" :min="0" :max="maxScale" @change="changeScale"></el-slider>
             </el-form-item>
             <el-divider content-position="left">渲染方案</el-divider>
             <el-form-item label="算法：" prop="renderMode" :rules="rules.changeNotNull">
@@ -183,10 +181,8 @@ const MIN_SIZE = 1;
 const MAX_SIZE = 1000;
 const DEFAULT_WIDTH = 50; // 图片默认生成宽度
 const RENDER_MODE = {
-  belt_tilt: {
-    bw: "黑白",
-    gray: "灰度",
-  },
+  belt_horiz: { bw: "黑白", gray: "灰度" },
+  belt_verti: { bw: "黑白", gray: "灰度" },
   monitor: {
     monitor_bw: "黑白",
     monitor_gray: "灰度表索引",
@@ -198,7 +194,8 @@ Object.keys(RENDER_MODE).forEach((k) => {
   Object.assign(ALL_RENDER_MODE, RENDER_MODE[k]);
 });
 const GENERATE_MODE = {
-  belt_tilt: "倾斜传送带",
+  belt_horiz: "水平带屏",
+  belt_verti: "垂直带屏",
   monitor: "流速器屏幕",
 };
 export default {
@@ -225,6 +222,11 @@ export default {
       },
       /**
        * @typedef SettingForm
+       * @property {boolean} fixedRatio 是否固定比例
+       * @property {number} comWidth 设置宽度
+       * @property {number} comHeight 设置高度
+       * @property {number} scale 宽高缩放
+       *
        * @property {string} renderMode 渲染模式 @see RENDER_MODE
        * @property {number} threshold 黑白阈值
        * @property {number} contrast 对比度
@@ -236,11 +238,15 @@ export default {
        */
       /** @type SettingForm */
       settingForm: {
+        fixedRatio: true,
+        comWidth: null,
+        comHeight: null,
+        scale: 1,
         renderMode: "gray",
         threshold: 128,
         contrast: 0,
         brightness: 0,
-        generateMode: "belt_tilt",
+        generateMode: "belt_horiz",
         z: 0,
         space: 1,
       },
@@ -287,30 +293,8 @@ export default {
       }
       return menuData;
     },
-    comWidth: {
-      set(newValue) {
-        if (!this.importForm.width) return;
-        newValue = this.limitSize(newValue);
-        this.settingForm.scale = newValue / this.importForm.width;
-      },
-      get() {
-        if (!this.importForm.width) return null;
-        return this.limitSize(this.importForm.width * this.settingForm.scale);
-      },
-    },
-    comHeight: {
-      set(newValue) {
-        if (!this.importForm.height) return;
-        newValue = this.limitSize(newValue);
-        this.settingForm.scale = newValue / this.importForm.height;
-      },
-      get() {
-        if (!this.importForm.height) return null;
-        return this.limitSize(this.importForm.height * this.settingForm.scale);
-      },
-    },
     maxScale() {
-      if (!this.importForm.height || !this.importForm.width) return 0;
+      if (!this.importForm.width || !this.importForm.height) return 0;
       return Math.min(MAX_SIZE / this.importForm.width, MAX_SIZE / this.importForm.height) + 0.01;
     },
     renderOptions() {
@@ -325,6 +309,42 @@ export default {
     },
   },
   methods: {
+    changeScale(val) {
+      this.settingForm.scale = val = Math.min(this.maxScale, val);
+      if (this.importForm.width != null) {
+        this.settingForm.comWidth = this.limitSize(this.importForm.width * val);
+      }
+      if (this.importForm.height != null) {
+        this.settingForm.comHeight = this.limitSize(this.importForm.height * val);
+      }
+    },
+    changeComWidth(val, updateScale = false) {
+      this.settingForm.comWidth = this.limitSize(val);
+      if ((updateScale || this.settingForm.fixedRatio) && this.importForm.width != null) {
+        // 锁定比例
+        this.changeScale(this.settingForm.comWidth / this.importForm.width);
+      }
+    },
+    changeComHeight(val, updateScale = false) {
+      this.settingForm.comHeight = this.limitSize(val);
+      if ((updateScale || this.settingForm.fixedRatio) && this.importForm.height != null) {
+        // 锁定比例
+        this.changeScale(this.settingForm.comHeight / this.importForm.height);
+      }
+    },
+    changeFixedRatio() {
+      this.settingForm.fixedRatio = !this.settingForm.fixedRatio;
+      if (this.settingForm.fixedRatio) {
+        this.changeComWidth(this.settingForm.comWidth, true);
+      }
+    },
+    resetComSize() {
+      if (this.importForm.importType === "text") {
+        this.changeComWidth(this.importForm.width, true);
+      } else {
+        this.changeComWidth(DEFAULT_WIDTH, true);
+      }
+    },
     limitSize(num) {
       return Math.min(MAX_SIZE, Math.max(MIN_SIZE, !num ? 0 : parseInt(num)));
     },
@@ -383,7 +403,7 @@ export default {
         image.onload = () => {
           this.importForm.width = image.width;
           this.importForm.height = image.height;
-          this.comWidth = DEFAULT_WIDTH; // 默认生成宽度
+          this.changeComWidth(DEFAULT_WIDTH, true); // 默认生成宽度
           this.imgLoaded = true;
           this.hideLoading();
           this.$nextTick(() => {
@@ -415,7 +435,7 @@ export default {
           image.onload = () => {
             this.importForm.width = image.width;
             this.importForm.height = image.height;
-            this.comWidth = this.importForm.width; // 默认生成宽度为文本宽度
+            this.changeComWidth(this.importForm.width, true); // 默认生成宽度为文本宽度
             this.imgLoaded = true;
             this.hideLoading();
             this.$nextTick(() => {
@@ -430,27 +450,15 @@ export default {
         });
     },
     // 文本生图end
-    resetComWidth() {
-      if (this.importForm.importType === "text") {
-        this.comWidth = this.importForm.width;
-      } else {
-        this.comWidth = DEFAULT_WIDTH;
-      }
-    },
     loadConfig() {
       this.config = {
         form: JSON.parse(JSON.stringify(this.settingForm)),
-        width: this.comWidth,
-        height: this.comHeight,
+        width: this.settingForm.comWidth,
+        height: this.settingForm.comHeight,
       };
       this.cfgLoaded = true;
     },
     confirmSetting() {
-      if (this.comWidth == null || isNaN(this.comWidth)) {
-        return Util._warn("宽不能为空！");
-      } else if (this.comHeight == null || isNaN(this.comHeight)) {
-        return Util._warn("高不能为空！");
-      }
       this.$refs.settingFormRef.validate((valid) => {
         if (valid) {
           this.render();
@@ -467,7 +475,7 @@ export default {
       this.showLoading("渲染中", true);
       try {
         const image = this.importForm.image;
-        const mode = this.config.form.renderMode;
+        const { renderMode, threshold, contrast, brightness } = this.config.form;
         let canvas = document.createElement("canvas");
         let context = canvas.getContext("2d");
         let [w, h] = [this.config.width, this.config.height];
@@ -483,16 +491,15 @@ export default {
         // after
         let imgData = context.getImageData(0, 0, w, h);
         const _progress = this.handleLoadingProgress;
-        const { threshold, contrast, brightness } = this.config.form;
-        if (mode == "bw") {
+        if (renderMode == "bw") {
           await ImageUtil.handleBlackWhite(imgData, threshold, _progress);
-        } else if (mode == "gray") {
+        } else if (renderMode == "gray") {
           await ImageUtil.handleGray(imgData, contrast, brightness, _progress);
-        } else if (mode == "monitor_bw") {
+        } else if (renderMode == "monitor_bw") {
           await ImageUtil.handleMonitorBlackWhite(imgData, threshold, brightness, _progress);
-        } else if (mode == "monitor_gray") {
+        } else if (renderMode == "monitor_gray") {
           await ImageUtil.handleMonitorGray(imgData, contrast, brightness, _progress);
-        } else if (mode == "monitor_color_euclid") {
+        } else if (renderMode == "monitor_color_euclid") {
           await ImageUtil.handleMonitorColorEuclid(imgData, contrast, brightness, _progress);
         }
         context.putImageData(imgData, 0, 0);
@@ -722,7 +729,7 @@ export default {
     margin-top: 10px;
     .el-input,
     .el-select {
-      width: 120px;
+      width: 130px;
     }
   }
   .preview {
@@ -794,13 +801,18 @@ export default {
     .el-input {
       width: 130px;
     }
-    .el-icon-link {
+    .fixedRatioBtn {
       width: 30px;
       margin-left: 10px;
       margin-right: -40px;
       font-size: 20px;
       color: #666;
       text-align: center;
+      z-index: 99;
+      cursor: pointer;
+      .if-icon-unlink {
+        color: $--color-danger;
+      }
     }
     .refreshBtn {
       padding: 0;
