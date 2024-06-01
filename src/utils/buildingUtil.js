@@ -60,13 +60,16 @@ function createbuildings(imgData, config, _progress) {
   const renderMode = config.form.renderMode;
   if (generateMode === "belt_horiz") {
     if (renderMode == "bw") {
-      return generateHorizBeltBWScreen(imgData, config, _progress);
+      return generateBeltBWScreen(imgData, config, false, _progress);
     } else if (renderMode == "gray") {
-      return generateHorizBeltGrayScreen(imgData, config, _progress);
+      return generateBeltGrayScreen(imgData, config, false, _progress);
     }
   } else if (generateMode === "belt_verti") {
-    return [];
-    // return generateVertiBeltScreen(imgData, config, _progress);
+    if (renderMode == "bw") {
+      return generateBeltBWScreen(imgData, config, true, _progress);
+    } else if (renderMode == "gray") {
+      return generateBeltGrayScreen(imgData, config, true, _progress);
+    }
   } else if (generateMode === "monitor") {
     if (renderMode === "monitor_bw" || renderMode === "monitor_gray") {
       return generateMonitorGrayScreen(imgData, config, _progress);
@@ -77,15 +80,22 @@ function createbuildings(imgData, config, _progress) {
   return [];
 }
 
+/** 垂直带y偏移量（防止褶皱） */
+const VERTI_DT_Y = 0.0005;
+/** 传送带最小间距 */
+const BELT_MIN_DIS = 0.25;
+
 /**
  * 水平灰度带屏
+ * @param {boolean} isVerti true:垂直带 false:水平带
  */
-async function generateHorizBeltGrayScreen(imgData, config, _progress) {
+async function generateBeltGrayScreen(imgData, config, isVerti, _progress) {
   let buildings = [];
   const width = +config.width;
   const height = +config.height;
   const space = +config.form.space;
   const z = +config.form.z;
+  const topZ = z + (height - 1) * space;
   let index = 0;
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(() => {
@@ -110,30 +120,44 @@ async function generateHorizBeltGrayScreen(imgData, config, _progress) {
       buildings.push(
         createBelt({
           index: index++,
-          offset: [x * space, y * space, z],
+          offset: isVerti
+            ? [x * space, y * VERTI_DT_Y, topZ - y * space]
+            : [x * space, y * space, z],
           tilt,
           nextBeltIdx,
         })
       );
     }, Math.round((i / imgData.data.length) * 100));
   }
+  if (isVerti) {
+    // 垂直带右下角增加入料口
+    buildings.push(
+      createBelt({
+        index: buildings.length,
+        offset: [0, 1, z],
+        nextBeltIdx: imgData.data.length / 4 - 1,
+      })
+    );
+  }
   return buildings;
 }
 
 /**
  * 水平黑白二值化带屏
+ * @param {boolean} isVerti true:垂直带 false:水平带
  */
-async function generateHorizBeltBWScreen(imgData, config, _progress) {
+async function generateBeltBWScreen(imgData, config, isVerti, _progress) {
   let buildings = [];
   const width = +config.width;
   const height = +config.height;
   const space = +config.form.space;
   const z = +config.form.z;
+  const topZ = z + (height - 1) * space;
 
   const fixBoundary = config.form.fixBoundary;
   let fixBuildings = [];
   let fixIndex = imgData.data.length / 4;
-  const fixDis = Math.min(0.125, (space - 0.25) / 2); // 边界两点距离/2
+  const fixDis = Math.max(0.01, Math.min(BELT_MIN_DIS / 2, space / 2 - BELT_MIN_DIS)); // 边界两点距离/2
 
   let index = 0;
   for (let i = 0; i < imgData.data.length; i += 4) {
@@ -165,46 +189,37 @@ async function generateHorizBeltBWScreen(imgData, config, _progress) {
           let topTilt = imgData.data[topIndex] > 128 ? 0 : 179;
           if (topTilt != tilt) {
             // 交界的像素中间插两个传送带
-            let fixNext;
+            let toTop, fixNext;
+            let centerY = y * space - space / 2;
             if (x % 2 == 0) {
+              toTop = 1; // 从下到上
               fixNext = nextBeltIdx;
               nextBeltIdx = fixIndex;
-              fixBuildings.push(
-                createBelt({
-                  index: fixIndex++,
-                  offset: [x * space, y * space - space / 2 + fixDis, z],
-                  tilt,
-                  nextBeltIdx: fixIndex,
-                })
-              );
-              fixBuildings.push(
-                createBelt({
-                  index: fixIndex++,
-                  offset: [x * space, y * space - space / 2 - fixDis, z],
-                  tilt: topTilt,
-                  nextBeltIdx: fixNext,
-                })
-              );
             } else {
+              toTop = -1; // 从上到下
               buildings[index - width].outputObjIdx = fixIndex;
               fixNext = index;
-              fixBuildings.push(
-                createBelt({
-                  index: fixIndex++,
-                  offset: [x * space, y * space - space / 2 - fixDis, z],
-                  tilt: topTilt,
-                  nextBeltIdx: fixIndex,
-                })
-              );
-              fixBuildings.push(
-                createBelt({
-                  index: fixIndex++,
-                  offset: [x * space, y * space - space / 2 + fixDis, z],
-                  tilt,
-                  nextBeltIdx: fixNext,
-                })
-              );
             }
+            fixBuildings.push(
+              createBelt({
+                index: fixIndex++,
+                offset: isVerti
+                  ? [x * space, y * VERTI_DT_Y, topZ - (centerY + toTop * fixDis)]
+                  : [x * space, centerY + toTop * fixDis, z],
+                tilt: toTop == 1 ? tilt : topTilt,
+                nextBeltIdx: fixIndex,
+              })
+            );
+            fixBuildings.push(
+              createBelt({
+                index: fixIndex++,
+                offset: isVerti
+                  ? [x * space, y * VERTI_DT_Y, topZ - (centerY - toTop * fixDis)]
+                  : [x * space, centerY - toTop * fixDis, z],
+                tilt: toTop == 1 ? topTilt : tilt,
+                nextBeltIdx: fixNext,
+              })
+            );
           }
         }
       }
@@ -212,7 +227,9 @@ async function generateHorizBeltBWScreen(imgData, config, _progress) {
       buildings.push(
         createBelt({
           index: index++,
-          offset: [x * space, y * space, z],
+          offset: isVerti
+            ? [x * space, y * VERTI_DT_Y, topZ - y * space]
+            : [x * space, y * space, z],
           tilt,
           nextBeltIdx,
         })
@@ -222,13 +239,18 @@ async function generateHorizBeltBWScreen(imgData, config, _progress) {
   if (config.form.fixBoundary) {
     buildings.push(...fixBuildings);
   }
+  if (isVerti) {
+    // 垂直带右下角增加入料口
+    buildings.push(
+      createBelt({
+        index: buildings.length,
+        offset: [0, 1, z],
+        nextBeltIdx: imgData.data.length / 4 - 1,
+      })
+    );
+  }
   return buildings;
 }
-
-/**
- * 垂直带屏
- */
-// async function generateVertiBeltScreen(imgData, config, _progress) {}
 
 /**
  * 生成流速器灰度屏
