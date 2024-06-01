@@ -78,7 +78,7 @@ function createbuildings(imgData, config, _progress) {
 }
 
 /**
- * 水平带屏
+ * 水平灰度带屏
  */
 async function generateHorizBeltGrayScreen(imgData, config, _progress) {
   let buildings = [];
@@ -92,19 +92,19 @@ async function generateHorizBeltGrayScreen(imgData, config, _progress) {
       let x = width - ((i / 4) % width) - 1;
       let y = Math.floor(i / 4 / width);
       let gray = imgData.data[i];
-      let tilt = 179 - Math.round((gray / 255) * 179);
+      let tilt = 179 - Math.round((gray / 255) * 90);
       let nextBeltIdx;
       if (x % 2 == 0) {
-        if (y == height - 1) {
-          nextBeltIdx = x == 0 ? -1 : index + 1;
-        } else {
-          nextBeltIdx = index + width;
-        }
-      } else {
         if (y == 0) {
-          nextBeltIdx = x == 0 ? -1 : index + 1;
+          nextBeltIdx = x == width - 1 ? -1 : index - 1;
         } else {
           nextBeltIdx = index - width;
+        }
+      } else {
+        if (y == height - 1) {
+          nextBeltIdx = x == width - 1 ? -1 : index - 1;
+        } else {
+          nextBeltIdx = index + width;
         }
       }
       buildings.push(
@@ -121,7 +121,7 @@ async function generateHorizBeltGrayScreen(imgData, config, _progress) {
 }
 
 /**
- * 水平二值化带屏
+ * 水平黑白二值化带屏
  */
 async function generateHorizBeltBWScreen(imgData, config, _progress) {
   let buildings = [];

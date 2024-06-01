@@ -256,7 +256,7 @@ export default {
         brightness: 0,
         generateMode: "belt_horiz",
         z: 0,
-        space: 1,
+        space: 0.5,
         fixBoundary: false,
       },
       imgLoaded: false, // 加载图像
@@ -315,6 +315,19 @@ export default {
         this.$set(this.settingForm, "renderMode", Object.keys(options)[0]);
       }
       return options;
+    },
+  },
+  watch: {
+    "settingForm.generateMode": {
+      handler(val, oldVal) {
+        if (val != oldVal) {
+          if (val == "monitor") {
+            this.settingForm.space = 1;
+          } else if (oldVal == "monitor") {
+            this.settingForm.space = 0.5;
+          }
+        }
+      },
     },
   },
   methods: {
