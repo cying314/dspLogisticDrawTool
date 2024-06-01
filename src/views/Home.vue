@@ -73,14 +73,13 @@
                 <li>高：{{config.height}}</li>
                 <li>算法：{{ALL_RENDER_MODE[config.form.renderMode]}}</li>
                 <li v-if="['bw','monitor_bw'].includes(config.form.renderMode)">阈值：{{config.form.threshold}}</li>
-                <template v-else>
-                  <li>对比度：{{config.form.contrast}}</li>
-                  <li>亮度：{{config.form.brightness}}</li>
-                </template>
+                <li v-else>对比度：{{config.form.contrast}}</li>
+                <li v-if="config.form.renderMode!='bw'">亮度：{{config.form.brightness}}</li>
               </ul>
               <ul class="configItems">
                 <li>生成类型：{{GENERATE_MODE[config.form.generateMode]}}</li>
                 <li>平面高度：{{config.form.z}}</li>
+                <li>建筑间距：{{config.form.space}}</li>
               </ul>
             </div>
             <div class="resBtn">
@@ -93,7 +92,7 @@
             <el-button size="small" type="primary" @click="confirmSetting">应用配置</el-button>
           </template>
           <el-form ref="settingFormRef" :model="settingForm" label-width="95px" size="small" hide-required-asterisk>
-            <div class="sizeInputWrap">
+            <div class="flexInputWrap">
               <el-form-item label="宽：">
                 <div class="el-input el-input--small">
                   <input class="el-input__inner" type="number" :min="MIN_SIZE" :max="MAX_SIZE" autocomplete="off" v-model.lazy="comWidth" />
@@ -119,23 +118,26 @@
             <el-form-item label="阈值：" v-if="['bw','monitor_bw'].includes(settingForm.renderMode)" prop="threshold" :rules="rules.changeNotNull">
               <el-slider v-model="settingForm.threshold" :min="0" :max="255"></el-slider>
             </el-form-item>
-            <template v-else>
-              <el-form-item label="对比度：" prop="contrast" :rules="rules.changeNotNull">
-                <el-slider v-model="settingForm.contrast" :min="-255" :max="255"></el-slider>
-              </el-form-item>
-              <el-form-item label="亮度：" prop="brightness" :rules="rules.changeNotNull">
-                <el-slider v-model="settingForm.brightness" :min="-255" :max="255"></el-slider>
-              </el-form-item>
-            </template>
+            <el-form-item v-else label="对比度：" prop="contrast" :rules="rules.changeNotNull">
+              <el-slider v-model="settingForm.contrast" :min="-255" :max="255" :marks="{0:''}"></el-slider>
+            </el-form-item>
+            <el-form-item v-if="settingForm.renderMode!='bw'" label="亮度：" prop="brightness" :rules="rules.changeNotNull">
+              <el-slider v-model="settingForm.brightness" :min="-255" :max="255" :marks="{0:''}"></el-slider>
+            </el-form-item>
             <el-divider content-position="left">生成方案</el-divider>
             <el-form-item label="生成类型：" prop="generateMode" :rules="rules.changeNotNull">
               <el-radio-group v-model="settingForm.generateMode">
                 <el-radio v-for="k in Object.keys(GENERATE_MODE)" :key="k" :label="k">{{GENERATE_MODE[k]}}</el-radio>
               </el-radio-group>
             </el-form-item>
-            <el-form-item label="平面高度：" prop="z" :rules="rules.blurNotNull">
-              <el-input-number v-model="settingForm.z" :min="0" :max="999"></el-input-number>
-            </el-form-item>
+            <div class="flexInputWrap">
+              <el-form-item label="平面高度：" prop="z" :rules="rules.blurNotNull">
+                <el-input-number v-model="settingForm.z" :min="0" :max="999"></el-input-number>
+              </el-form-item>
+              <el-form-item label="建筑间距" prop="space" :rules="rules.blurNotNull">
+                <el-input-number v-model="settingForm.space" :min="0" :max="10" :step="0.01" step-strictly></el-input-number>
+              </el-form-item>
+            </div>
           </el-form>
         </ScrollCardItem>
       </ScrollCard>
@@ -175,6 +177,8 @@ import ScrollCardItem from "@/components/ScrollCardItem.vue";
 import * as Parser from "@/utils/parser";
 // import * as itemsUtil from "@/utils/itemsUtil";
 import * as Util from "@/utils/index.js";
+import * as ImageUtil from "@/utils/imageUtil.js";
+import * as BuildingUtil from "@/utils/buildingUtil.js";
 const MIN_SIZE = 1;
 const MAX_SIZE = 1000;
 const DEFAULT_WIDTH = 50; // 图片默认生成宽度
@@ -228,6 +232,7 @@ export default {
        *
        * @property {string} generateMode 生成模式 @see GENERATE_MODE
        * @property {number} z 生成高度
+       * @property {number} space 建筑间距
        */
       /** @type SettingForm */
       settingForm: {
@@ -237,6 +242,7 @@ export default {
         brightness: 0,
         generateMode: "belt_tilt",
         z: 0,
+        space: 1,
       },
       imgLoaded: false, // 加载图像
       cfgLoaded: false, // 加载配置
@@ -402,7 +408,7 @@ export default {
       }
       this.init();
       this.showLoading();
-      Util.textToBase64({ content: text, fontSize, textAlign, color })
+      ImageUtil.textToBase64({ content: text, fontSize, textAlign, color })
         .then((base64) => {
           const image = new Image();
           image.src = base64;
@@ -479,15 +485,15 @@ export default {
         const _progress = this.handleLoadingProgress;
         const { threshold, contrast, brightness } = this.config.form;
         if (mode == "bw") {
-          await Util.handleBlackWhite(imgData, threshold, false, _progress);
-        } else if (mode == "monitor_bw") {
-          await Util.handleBlackWhite(imgData, threshold, true, _progress);
+          await ImageUtil.handleBlackWhite(imgData, threshold, _progress);
         } else if (mode == "gray") {
-          await Util.handleGray(imgData, contrast, brightness, _progress);
+          await ImageUtil.handleGray(imgData, contrast, brightness, _progress);
+        } else if (mode == "monitor_bw") {
+          await ImageUtil.handleMonitorBlackWhite(imgData, threshold, brightness, _progress);
         } else if (mode == "monitor_gray") {
-          await Util.handleMonitorGray(imgData, contrast, brightness, _progress);
+          await ImageUtil.handleMonitorGray(imgData, contrast, brightness, _progress);
         } else if (mode == "monitor_color_euclid") {
-          await Util.handleMonitorColorEuclid(imgData, contrast, brightness, _progress);
+          await ImageUtil.handleMonitorColorEuclid(imgData, contrast, brightness, _progress);
         }
         context.putImageData(imgData, 0, 0);
         this.afterBase64 = canvas.toDataURL();
@@ -563,7 +569,7 @@ export default {
           let imgData = ctx.getImageData(0, 0, w, h);
           this.config.name = GENERATE_MODE[this.config.form.generateMode];
 
-          const blueprint = await Util.generateBlueprint(
+          const blueprint = await BuildingUtil.generateBlueprint(
             imgData,
             this.config,
             this.handleLoadingProgress
@@ -776,7 +782,7 @@ export default {
       text-align: center;
     }
   }
-  .sizeInputWrap {
+  .flexInputWrap {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-start;
