@@ -80,6 +80,7 @@
                 <li>生成类型：{{GENERATE_MODE[config.form.generateMode]}}</li>
                 <li>平面高度：{{config.form.z}}</li>
                 <li>建筑间距：{{config.form.space}}</li>
+                <li v-if="config.form.renderMode=='bw'&&config.form.fixBoundary">锐化传送带像素边缘</li>
               </ul>
             </div>
             <div class="resBtn">
@@ -132,10 +133,16 @@
               <el-form-item label="平面高度：" prop="z" :rules="rules.blurNotNull">
                 <el-input-number v-model="settingForm.z" :min="0" :max="999"></el-input-number>
               </el-form-item>
-              <el-form-item label="建筑间距" prop="space" :rules="rules.blurNotNull">
+              <el-form-item label="建筑间距：" prop="space" :rules="rules.blurNotNull">
                 <el-input-number v-model="settingForm.space" :min="0" :max="10" :step="0.01" step-strictly></el-input-number>
               </el-form-item>
             </div>
+            <el-form-item label="高级选项：" v-if="settingForm.renderMode=='bw'">
+              <el-checkbox v-model="settingForm.fixBoundary" title="添加额外的传送带节点，锐化“黑白像素交界处”的传送带弯折效果">
+                锐化传送带像素边缘
+                <i class="el-icon-question"></i>
+              </el-checkbox>
+            </el-form-item>
           </el-form>
         </ScrollCardItem>
       </ScrollCard>
@@ -235,6 +242,7 @@ export default {
        * @property {string} generateMode 生成模式 @see GENERATE_MODE
        * @property {number} z 生成高度
        * @property {number} space 建筑间距
+       * @property {number} fixBoundary 优化边缘（传送带黑白倾斜）
        */
       /** @type SettingForm */
       settingForm: {
@@ -249,6 +257,7 @@ export default {
         generateMode: "belt_horiz",
         z: 0,
         space: 1,
+        fixBoundary: false,
       },
       imgLoaded: false, // 加载图像
       cfgLoaded: false, // 加载配置

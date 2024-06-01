@@ -129,6 +129,12 @@ async function generateHorizBeltBWScreen(imgData, config, _progress) {
   const height = +config.height;
   const space = +config.form.space;
   const z = +config.form.z;
+
+  const fixBoundary = config.form.fixBoundary;
+  let fixBuildings = [];
+  let fixIndex = imgData.data.length / 4;
+  const fixDis = Math.min(0.125, (space - 0.25) / 2); // 边界两点距离/2
+
   let index = 0;
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(() => {
@@ -150,6 +156,59 @@ async function generateHorizBeltBWScreen(imgData, config, _progress) {
           nextBeltIdx = index + width;
         }
       }
+
+      // 优化边缘
+      if (fixBoundary) {
+        let topIndex = i - width * 4;
+        if (topIndex >= 0) {
+          // 判断竖直方向上的颜色交界
+          let topTilt = imgData.data[topIndex] > 128 ? 0 : 179;
+          if (topTilt != tilt) {
+            // 交界的像素中间插两个传送带
+            let fixNext;
+            if (x % 2 == 0) {
+              fixNext = nextBeltIdx;
+              nextBeltIdx = fixIndex;
+              fixBuildings.push(
+                createBelt({
+                  index: fixIndex++,
+                  offset: [x * space, y * space - space / 2 + fixDis, z],
+                  tilt,
+                  nextBeltIdx: fixIndex,
+                })
+              );
+              fixBuildings.push(
+                createBelt({
+                  index: fixIndex++,
+                  offset: [x * space, y * space - space / 2 - fixDis, z],
+                  tilt: topTilt,
+                  nextBeltIdx: fixNext,
+                })
+              );
+            } else {
+              buildings[index - width].outputObjIdx = fixIndex;
+              fixNext = index;
+              fixBuildings.push(
+                createBelt({
+                  index: fixIndex++,
+                  offset: [x * space, y * space - space / 2 - fixDis, z],
+                  tilt: topTilt,
+                  nextBeltIdx: fixIndex,
+                })
+              );
+              fixBuildings.push(
+                createBelt({
+                  index: fixIndex++,
+                  offset: [x * space, y * space - space / 2 + fixDis, z],
+                  tilt,
+                  nextBeltIdx: fixNext,
+                })
+              );
+            }
+          }
+        }
+      }
+
       buildings.push(
         createBelt({
           index: index++,
@@ -159,6 +218,9 @@ async function generateHorizBeltBWScreen(imgData, config, _progress) {
         })
       );
     }, Math.round((i / imgData.data.length) * 100));
+  }
+  if (config.form.fixBoundary) {
+    buildings.push(...fixBuildings);
   }
   return buildings;
 }
