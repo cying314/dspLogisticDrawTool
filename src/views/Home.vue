@@ -47,9 +47,9 @@
               <el-form-item label="颜色：">
                 <el-color-picker v-model="importForm.color" @change="changColor"></el-color-picker>
               </el-form-item>
-              <el-form-item label="字体：">
+              <!-- <el-form-item label="字体：">
                 <el-button size="mini" icon="el-icon-upload2">上传字体</el-button>
-              </el-form-item>
+              </el-form-item> -->
             </el-form>
             <el-button type="primary" size="small" @click="textToImage">生成图片</el-button>
           </template>
