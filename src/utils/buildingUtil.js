@@ -298,8 +298,13 @@ async function generateBeltBWScreen(imgData, config, isVerti, _progress) {
 async function generateMonitorGrayScreen(imgData, config, _progress) {
   let buildings = [];
   const width = +config.width;
+  const height = +config.height;
   const space = +config.form.space;
   const z = +config.form.z;
+
+  // 生成电线杆阵列
+  const addPowerGrid = config.form.addPowerGrid;
+
   let index = 0;
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(() => {
@@ -314,6 +319,11 @@ async function generateMonitorGrayScreen(imgData, config, _progress) {
       buildings.push(createBelt({ index: index++, offset: [x, y, z] }));
     }, Math.round((i / imgData.data.length) * 100));
   }
+
+  // 生成电线杆阵列
+  if (addPowerGrid) {
+    handleAddPowerGrid(buildings, width, height, 8);
+  }
   return buildings;
 }
 
@@ -323,8 +333,13 @@ async function generateMonitorGrayScreen(imgData, config, _progress) {
 async function generateMonitorColorScreen(imgData, config, _progress) {
   let buildings = [];
   const width = +config.width;
+  const height = +config.height;
   const space = +config.form.space;
   const z = +config.form.z;
+
+  // 生成电线杆阵列
+  const addPowerGrid = config.form.addPowerGrid;
+
   let index = 0;
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(() => {
@@ -343,7 +358,31 @@ async function generateMonitorColorScreen(imgData, config, _progress) {
       buildings.push(createBelt({ index: index++, offset: [x, y, z] }));
     }, Math.round((i / imgData.data.length) * 100));
   }
+
+  // 生成电线杆阵列
+  if (addPowerGrid) {
+    handleAddPowerGrid(buildings, width * space, height * space, 8);
+  }
   return buildings;
+}
+
+/**
+ * 生成电线杆阵列
+ * @param {number} powerDis 电网距离
+ */
+function handleAddPowerGrid(buildings, width, height, powerDis) {
+  let w = Math.ceil(width / powerDis + 0.5);
+  let h = Math.ceil(height / powerDis + 0.5);
+  for (let j = 0; j < w; j++) {
+    for (let k = 0; k < h; k++) {
+      buildings.push(
+        createTeslaCoil({
+          index: buildings.length,
+          offset: [j * powerDis, k * powerDis, 0],
+        })
+      );
+    }
+  }
 }
 
 /**
@@ -440,5 +479,37 @@ export function createMonitor({
       volume: 80,
       length: 4,
     },
+  };
+}
+
+/**
+ * 创建电线杆
+ * @param {Object} opt
+ * @param {number} opt.index 索引
+ * @param {number[]} opt.offset 偏移 [x,y,z]
+ */
+export function createTeslaCoil({ index = 0, offset: [x = 0, y = 0, z = 0] = [] }) {
+  return {
+    index: index,
+    areaIndex: 0,
+    localOffset: [
+      { x, y, z },
+      { x, y, z },
+    ],
+    yaw: [0, 0],
+    tilt: 0,
+    itemId: 2201,
+    modelIndex: 44,
+    outputObjIdx: -1,
+    inputObjIdx: -1,
+    outputToSlot: 0,
+    inputFromSlot: 0,
+    outputFromSlot: 0,
+    inputToSlot: 0,
+    outputOffset: 0,
+    inputOffset: 0,
+    recipeId: 0,
+    filterId: 0,
+    parameters: null,
   };
 }

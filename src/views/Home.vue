@@ -49,7 +49,7 @@
               </el-form-item>
               <!-- <el-form-item label="字体：">
                 <el-button size="mini" icon="el-icon-upload2">上传字体</el-button>
-              </el-form-item> -->
+              </el-form-item>-->
             </el-form>
             <el-button type="primary" size="small" @click="textToImage">生成图片</el-button>
           </template>
@@ -286,6 +286,7 @@ export default {
         connectBelt: true,
         fixBoundary: true,
         addInputPort: true,
+        addPowerGrid: false,
       },
       imgLoaded: false, // 加载图像
       cfgLoaded: false, // 加载配置
@@ -381,6 +382,13 @@ export default {
         options.push({
           key: "addInputPort",
           name: "增加入料口",
+        });
+      }
+      if (settingForm.generateMode == "monitor") {
+        options.push({
+          key: "addPowerGrid",
+          name: "生成电线杆阵列",
+          title: "用于流速器供电，建议平面高度5设置以覆盖供电",
         });
       }
       return options;
