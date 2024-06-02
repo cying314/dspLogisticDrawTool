@@ -657,6 +657,8 @@ export default {
         // 禁用平滑
         try {
           this.closeSmoothing(ctx);
+          canvas.width = w;
+          canvas.height = h;
           ctx.drawImage(image, 0, 0, w, h);
           let imgData = ctx.getImageData(0, 0, w, h);
           this.config.name = GENERATE_MODE[this.config.form.generateMode];
