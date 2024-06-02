@@ -78,9 +78,12 @@
               </ul>
               <ul class="configItems">
                 <li>生成类型：{{GENERATE_MODE[config.form.generateMode]}}</li>
-                <li>平面高度：{{config.form.z}}</li>
+                <li v-if="config.form.generateMode=='belt_verti'">倾斜角度：{{config.form.angle}}°</li>
+                <li>{{config.form.generateMode=='belt_verti'?'底边高度：':'平面高度：'}}{{config.form.z}}</li>
                 <li>建筑间距：{{config.form.space}}</li>
-                <li v-if="config.form.renderMode=='bw'&&config.form.fixBoundary">锐化传送带像素边缘</li>
+                <template v-for="opt in config.otherOptions">
+                  <li :key="opt.key" v-if="config.form[opt.key]">{{opt.name}}</li>
+                </template>
               </ul>
             </div>
             <div class="resBtn">
@@ -92,7 +95,7 @@
           <template #topRight>
             <el-button size="small" type="primary" @click="confirmSetting">应用配置</el-button>
           </template>
-          <el-form ref="settingFormRef" :model="settingForm" label-width="95px" size="small" hide-required-asterisk>
+          <el-form class="settingForm" ref="settingFormRef" :model="settingForm" label-width="95px" size="small" hide-required-asterisk>
             <div class="flexInputWrap">
               <el-form-item label="宽：" prop="comWidth" :rules="rules.blurNotNull">
                 <el-input type="number" v-model.lazy="settingForm.comWidth" @change="changeComWidth($event)"></el-input>
@@ -106,7 +109,10 @@
               <el-button class="refreshBtn" type="text" icon="el-icon-refresh-left" @click="resetComSize"></el-button>
             </div>
             <el-form-item label="缩放：" prop="scale" :rules="rules.changeNotNull">
-              <el-slider v-model="settingForm.scale" :disabled="!settingForm.fixedRatio" :step="0.01" step-strictly :format-tooltip="formatTooltip" :min="0" :max="maxScale" @change="changeScale"></el-slider>
+              <div class="sliderWrap">
+                <el-slider v-model="settingForm.scale" :disabled="!settingForm.fixedRatio" :step="0.01" step-strictly :format-tooltip="formatTooltip" :min="0" :max="maxScale" @change="changeScale"></el-slider>
+                <span>{{settingForm.scale?settingForm.scale.toFixed(2):0}}</span>
+              </div>
             </el-form-item>
             <el-divider content-position="left">渲染方案</el-divider>
             <el-form-item label="算法：" prop="renderMode" :rules="rules.changeNotNull">
@@ -115,13 +121,22 @@
               </el-radio-group>
             </el-form-item>
             <el-form-item label="阈值：" v-if="['bw','monitor_bw'].includes(settingForm.renderMode)" prop="threshold" :rules="rules.changeNotNull">
-              <el-slider v-model="settingForm.threshold" :min="0" :max="255"></el-slider>
+              <div class="sliderWrap">
+                <el-slider v-model="settingForm.threshold" :min="0" :max="255"></el-slider>
+                <span>{{settingForm.threshold}}</span>
+              </div>
             </el-form-item>
             <el-form-item v-else label="对比度：" prop="contrast" :rules="rules.changeNotNull">
-              <el-slider v-model="settingForm.contrast" :min="-255" :max="255" :marks="{0:''}"></el-slider>
+              <div class="sliderWrap">
+                <el-slider v-model="settingForm.contrast" :min="-255" :max="255" :marks="{0:'0'}"></el-slider>
+                <span>{{settingForm.contrast}}</span>
+              </div>
             </el-form-item>
             <el-form-item v-if="settingForm.renderMode!='bw'" label="亮度：" prop="brightness" :rules="rules.changeNotNull">
-              <el-slider v-model="settingForm.brightness" :min="-255" :max="255" :marks="{0:''}"></el-slider>
+              <div class="sliderWrap">
+                <el-slider v-model="settingForm.brightness" :min="-255" :max="255" :marks="{0:'0'}"></el-slider>
+                <span>{{settingForm.brightness}}</span>
+              </div>
             </el-form-item>
             <el-divider content-position="left">生成方案</el-divider>
             <el-form-item label="生成类型：" prop="generateMode" :rules="rules.changeNotNull">
@@ -129,18 +144,24 @@
                 <el-radio v-for="k in Object.keys(GENERATE_MODE)" :key="k" :label="k">{{GENERATE_MODE[k]}}</el-radio>
               </el-radio-group>
             </el-form-item>
+            <el-form-item label="倾斜角度：" v-if="settingForm.generateMode=='belt_verti'" prop="angle" :rules="rules.changeNotNull">
+              <div class="sliderWrap">
+                <el-slider v-model="settingForm.angle" :min="0" :max="180" :format-tooltip="(val)=>val+'°'" :marks="{45:'45°',90:'90°',135:'135°'}"></el-slider>
+                <span>{{settingForm.angle}}°</span>
+              </div>
+            </el-form-item>
             <div class="flexInputWrap">
-              <el-form-item label="平面高度：" prop="z" :rules="rules.blurNotNull">
+              <el-form-item :label="settingForm.generateMode=='belt_verti'?'底边高度：':'平面高度：'" prop="z" :rules="rules.blurNotNull">
                 <el-input-number v-model="settingForm.z" :min="0" :max="999"></el-input-number>
               </el-form-item>
               <el-form-item label="建筑间距：" prop="space" :rules="rules.blurNotNull">
                 <el-input-number v-model="settingForm.space" :min="0" :max="10" :step="0.01" step-strictly></el-input-number>
               </el-form-item>
             </div>
-            <el-form-item label="高级选项：" v-if="settingForm.renderMode=='bw'">
-              <el-checkbox v-model="settingForm.fixBoundary" title="添加额外的传送带节点，锐化“黑白像素交界处”的传送带弯折效果">
-                锐化传送带像素边缘
-                <i class="el-icon-question"></i>
+            <el-form-item label="高级选项：" v-if="otherSettingOptions.length>0">
+              <el-checkbox v-for="opt in otherSettingOptions" :key="opt.key" v-model="settingForm[opt.key]" :title="opt.title||''">
+                {{opt.name}}
+                <i v-if="opt.title" class="el-icon-question"></i>
               </el-checkbox>
             </el-form-item>
           </el-form>
@@ -188,8 +209,8 @@ const MIN_SIZE = 1;
 const MAX_SIZE = 1000;
 const DEFAULT_WIDTH = 50; // 图片默认生成宽度
 const RENDER_MODE = {
-  belt_horiz: { bw: "黑白", gray: "灰度" },
-  belt_verti: { bw: "黑白", gray: "灰度" },
+  belt_horiz: { bw: "黑白", gray: "灰度(光栅屏)" },
+  belt_verti: { bw: "黑白", gray: "灰度(光栅屏)" },
   monitor: {
     monitor_bw: "黑白",
     monitor_gray: "灰度表索引",
@@ -242,7 +263,11 @@ export default {
        * @property {string} generateMode 生成模式 @see GENERATE_MODE
        * @property {number} z 生成高度
        * @property {number} space 建筑间距
-       * @property {number} fixBoundary 优化边缘（传送带黑白倾斜）
+       * @property {number} angle 垂直屏倾斜角度
+       *
+       * @property {boolean} connectBelt 是否传送带首尾相接（传送带）
+       * @property {boolean} fixBoundary 是否锐化传送带像素边缘（黑白模式传送带）
+       * @property {boolean} addInputPort 是否增加入料口（垂直传送带）
        */
       /** @type SettingForm */
       settingForm: {
@@ -255,9 +280,12 @@ export default {
         contrast: 0,
         brightness: 0,
         generateMode: "belt_horiz",
+        angle: 90,
         z: 0,
         space: 0.5,
-        fixBoundary: false,
+        connectBelt: true,
+        fixBoundary: true,
+        addInputPort: true,
       },
       imgLoaded: false, // 加载图像
       cfgLoaded: false, // 加载配置
@@ -316,6 +344,9 @@ export default {
       }
       return options;
     },
+    otherSettingOptions() {
+      return this.getOtherOptions(this.settingForm);
+    },
   },
   watch: {
     "settingForm.generateMode": {
@@ -331,6 +362,29 @@ export default {
     },
   },
   methods: {
+    getOtherOptions(settingForm) {
+      let options = [];
+      if (settingForm.generateMode == "belt_horiz" || settingForm.generateMode == "belt_verti") {
+        options.push({
+          key: "connectBelt",
+          name: "传送带首尾相接",
+        });
+      }
+      if (settingForm.renderMode == "bw") {
+        options.push({
+          key: "fixBoundary",
+          name: "锐化传送带像素边缘",
+          title: "添加额外的传送带节点，锐化“黑白像素交界处”的传送带弯折效果",
+        });
+      }
+      if (settingForm.generateMode == "belt_verti") {
+        options.push({
+          key: "addInputPort",
+          name: "增加入料口",
+        });
+      }
+      return options;
+    },
     changeScale(val) {
       this.settingForm.scale = val = Math.min(this.maxScale, val);
       if (this.importForm.width != null) {
@@ -477,6 +531,7 @@ export default {
         form: JSON.parse(JSON.stringify(this.settingForm)),
         width: this.settingForm.comWidth,
         height: this.settingForm.comHeight,
+        otherOptions: this.getOtherOptions(this.settingForm),
       };
       this.cfgLoaded = true;
     },
@@ -811,36 +866,59 @@ export default {
       text-align: center;
     }
   }
-  .flexInputWrap {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    align-items: center;
-    margin-bottom: 18px;
-    .el-form-item {
-      margin-bottom: 0;
-    }
-    .el-input {
-      width: 130px;
-    }
-    .fixedRatioBtn {
-      width: 30px;
-      margin-left: 10px;
-      margin-right: -40px;
-      font-size: 20px;
-      color: #666;
-      text-align: center;
-      z-index: 99;
-      cursor: pointer;
-      .if-icon-unlink {
-        color: $--color-danger;
+  .settingForm {
+    .sliderWrap {
+      display: flex;
+      align-items: center;
+      .el-slider {
+        flex: 1;
+        ::v-deep .el-slider__marks-text {
+          transform: translateX(-50%) scale(0.8);
+          transform-origin: top center;
+          font-size: 12px;
+          margin-top: 5px;
+        }
+      }
+      > span {
+        flex-shrink: 0;
+        width: 35px;
+        font-size: 12px;
+        color: #606266;
+        margin-left: 15px;
       }
     }
-    .refreshBtn {
-      padding: 0;
-      margin-left: 10px;
+    .flexInputWrap {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      align-items: center;
+      margin-bottom: 18px;
+      .el-form-item {
+        margin-bottom: 0;
+      }
+      .el-input {
+        width: 130px;
+      }
+      .fixedRatioBtn {
+        width: 30px;
+        margin-left: 10px;
+        margin-right: -40px;
+        font-size: 20px;
+        color: #666;
+        text-align: center;
+        z-index: 99;
+        cursor: pointer;
+        .if-icon-unlink {
+          color: $--color-danger;
+        }
+      }
+      .refreshBtn {
+        padding: 0;
+        margin-left: 10px;
+      }
     }
   }
+
   .loading-mask {
     position: fixed;
     z-index: 2000;

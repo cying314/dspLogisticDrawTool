@@ -80,8 +80,8 @@ function createbuildings(imgData, config, _progress) {
   return [];
 }
 
-/** 垂直带y偏移量（防止褶皱） */
-const VERTI_DT_Y = 0.0005;
+/** 垂直带最小y偏移量（防止褶皱） */
+const VERTI_MIN_DT_Y = 0.0005;
 /** 传送带最小间距 */
 const BELT_MIN_DIS = 0.25;
 
@@ -95,7 +95,23 @@ async function generateBeltGrayScreen(imgData, config, isVerti, _progress) {
   const height = +config.height;
   const space = +config.form.space;
   const z = +config.form.z;
-  const topZ = z + (height - 1) * space;
+
+  let rad, sin, cos, dtY, topZ, maxY;
+  if (isVerti) {
+    rad = (+config.form.angle / 180) * Math.PI;
+    sin = +Math.sin(rad).toFixed(3);
+    cos = +Math.cos(rad).toFixed(3);
+    dtY = space * cos;
+    if (Math.abs(dtY) < VERTI_MIN_DT_Y) dtY = VERTI_MIN_DT_Y;
+    topZ = z + (height - 1) * space * sin;
+    maxY = (height - 1) * dtY;
+  }
+
+  // 传送带首尾相接
+  const connectBelt = config.form.connectBelt;
+  // 增加入料口
+  const addInputPort = isVerti && config.form.addInputPort;
+
   let index = 0;
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(() => {
@@ -106,13 +122,13 @@ async function generateBeltGrayScreen(imgData, config, isVerti, _progress) {
       let nextBeltIdx;
       if (x % 2 == 0) {
         if (y == 0) {
-          nextBeltIdx = x == width - 1 ? -1 : index - 1;
+          nextBeltIdx = !connectBelt || x == width - 1 ? -1 : index - 1;
         } else {
           nextBeltIdx = index - width;
         }
       } else {
         if (y == height - 1) {
-          nextBeltIdx = x == width - 1 ? -1 : index - 1;
+          nextBeltIdx = !connectBelt || x == width - 1 ? -1 : index - 1;
         } else {
           nextBeltIdx = index + width;
         }
@@ -121,7 +137,7 @@ async function generateBeltGrayScreen(imgData, config, isVerti, _progress) {
         createBelt({
           index: index++,
           offset: isVerti
-            ? [x * space, y * VERTI_DT_Y, topZ - y * space]
+            ? [x * space, maxY - y * dtY, topZ - y * space * sin]
             : [x * space, y * space, z],
           tilt,
           nextBeltIdx,
@@ -129,12 +145,12 @@ async function generateBeltGrayScreen(imgData, config, isVerti, _progress) {
       );
     }, Math.round((i / imgData.data.length) * 100));
   }
-  if (isVerti) {
+  if (addInputPort) {
     // 垂直带右下角增加入料口
     buildings.push(
       createBelt({
         index: buildings.length,
-        offset: [0, 1, z],
+        offset: [-1, 0, z],
         nextBeltIdx: imgData.data.length / 4 - 1,
       })
     );
@@ -152,12 +168,28 @@ async function generateBeltBWScreen(imgData, config, isVerti, _progress) {
   const height = +config.height;
   const space = +config.form.space;
   const z = +config.form.z;
-  const topZ = z + (height - 1) * space;
 
+  let rad, sin, cos, dtY, topZ, maxY;
+  if (isVerti) {
+    rad = (+config.form.angle / 180) * Math.PI;
+    sin = +Math.sin(rad).toFixed(3);
+    cos = +Math.cos(rad).toFixed(3);
+    dtY = space * cos;
+    if (Math.abs(dtY) < VERTI_MIN_DT_Y) dtY = VERTI_MIN_DT_Y;
+    topZ = z + (height - 1) * space * sin;
+    maxY = (height - 1) * dtY;
+  }
+
+  // 传送带首尾相接
+  const connectBelt = config.form.connectBelt;
+  // 锐化传送带像素边缘
   const fixBoundary = config.form.fixBoundary;
   let fixBuildings = [];
   let fixIndex = imgData.data.length / 4;
   const fixDis = Math.max(0.01, Math.min(BELT_MIN_DIS / 2, space / 2 - BELT_MIN_DIS)); // 边界两点距离/2
+  const fixDtY = fixDis * cos;
+  // 增加入料口
+  const addInputPort = isVerti && config.form.addInputPort;
 
   let index = 0;
   for (let i = 0; i < imgData.data.length; i += 4) {
@@ -169,13 +201,13 @@ async function generateBeltBWScreen(imgData, config, isVerti, _progress) {
       let nextBeltIdx;
       if (x % 2 == 0) {
         if (y == 0) {
-          nextBeltIdx = x == width - 1 ? -1 : index - 1;
+          nextBeltIdx = !connectBelt || x == width - 1 ? -1 : index - 1;
         } else {
           nextBeltIdx = index - width;
         }
       } else {
         if (y == height - 1) {
-          nextBeltIdx = x == width - 1 ? -1 : index - 1;
+          nextBeltIdx = !connectBelt || x == width - 1 ? -1 : index - 1;
         } else {
           nextBeltIdx = index + width;
         }
@@ -204,7 +236,11 @@ async function generateBeltBWScreen(imgData, config, isVerti, _progress) {
               createBelt({
                 index: fixIndex++,
                 offset: isVerti
-                  ? [x * space, y * VERTI_DT_Y, topZ - (centerY + toTop * fixDis)]
+                  ? [
+                      x * space,
+                      maxY - (y * dtY - dtY / 2 + toTop * fixDtY),
+                      topZ - (centerY + toTop * fixDis) * sin,
+                    ]
                   : [x * space, centerY + toTop * fixDis, z],
                 tilt: toTop == 1 ? tilt : topTilt,
                 nextBeltIdx: fixIndex,
@@ -214,7 +250,11 @@ async function generateBeltBWScreen(imgData, config, isVerti, _progress) {
               createBelt({
                 index: fixIndex++,
                 offset: isVerti
-                  ? [x * space, y * VERTI_DT_Y, topZ - (centerY - toTop * fixDis)]
+                  ? [
+                      x * space,
+                      maxY - (y * dtY - dtY / 2 - toTop * fixDtY),
+                      topZ - (centerY - toTop * fixDis) * sin,
+                    ]
                   : [x * space, centerY - toTop * fixDis, z],
                 tilt: toTop == 1 ? topTilt : tilt,
                 nextBeltIdx: fixNext,
@@ -228,7 +268,7 @@ async function generateBeltBWScreen(imgData, config, isVerti, _progress) {
         createBelt({
           index: index++,
           offset: isVerti
-            ? [x * space, y * VERTI_DT_Y, topZ - y * space]
+            ? [x * space, maxY - y * dtY, topZ - y * space * sin]
             : [x * space, y * space, z],
           tilt,
           nextBeltIdx,
@@ -236,15 +276,15 @@ async function generateBeltBWScreen(imgData, config, isVerti, _progress) {
       );
     }, Math.round((i / imgData.data.length) * 100));
   }
-  if (config.form.fixBoundary) {
+  if (fixBoundary) {
     buildings.push(...fixBuildings);
   }
-  if (isVerti) {
+  if (addInputPort) {
     // 垂直带右下角增加入料口
     buildings.push(
       createBelt({
         index: buildings.length,
-        offset: [0, 1, z],
+        offset: [-1, 0, z],
         nextBeltIdx: imgData.data.length / 4 - 1,
       })
     );
