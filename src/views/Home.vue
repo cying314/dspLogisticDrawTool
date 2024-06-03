@@ -65,7 +65,9 @@
               </el-form-item>
               <el-form-item label="字体：">
                 <el-select v-model="importForm.fontFamily" filterable allow-create default-first-option @change="changeFontFamily">
-                  <el-option v-for="font in FONTS" :key="font.en" :label="`${font.ch} ${font.en}`" :value="font.en"></el-option>
+                  <el-option v-for="font in FONTS" :key="font.en" :label="`${font.ch} ${font.en}`" :value="font.en">
+                    <span :style="`font-family:'${font.en}'`">{{`${font.ch} ${font.en}`}}</span>
+                  </el-option>
                 </el-select>
                 <i style="margin-left:5px;color:var(--color-primary);cursor:help;" class="el-icon-question" :title="`可输入任意你电脑中安装的字体名称，回车插入使用`"></i>
               </el-form-item>
