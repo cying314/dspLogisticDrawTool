@@ -1,3 +1,4 @@
+import * as ImageUtil from "@/utils/imageUtil.js";
 /**
  * hex颜色表
  * 流速器满足/不满足条件颜色(0-255)
@@ -266,7 +267,7 @@ color.forEach((hex, i) => {
   colorIndexMap.set(hex, i);
 });
 /** rgb颜色表 */
-export const rgbColor = color.map(hexToRgb);
+export const rgbColor = color.map(ImageUtil.hexToRgb);
 
 /** 灰度颜色表 */
 export const grayColor = [
@@ -287,14 +288,3 @@ grayColor.forEach((c) => {
   grayColorIndexMap.set(c[2], c[0]);
   grayColorIndexs.push(c[2]);
 });
-
-export function hexToRgb(hex) {
-  let r = parseInt(hex.slice(1, 3), 16);
-  let g = parseInt(hex.slice(3, 5), 16);
-  let b = parseInt(hex.slice(5, 7), 16);
-  return [r, g, b];
-}
-
-export function rgbToHex(r, g, b) {
-  return "#" + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
-}

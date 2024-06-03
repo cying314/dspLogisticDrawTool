@@ -234,19 +234,26 @@ export function closestColorIndex([r, g, b]) {
  * 根据 流速器全颜色表索引 生成仿色（欧几里得距离）
  * @param {number[]} imgData 图像数据
  * @param {Object} params
+ * @param {number} params.hueShift 色相偏移(-180 - 180)
  * @param {number} params.contrast 对比度(-255 - 255)
  * @param {number} params.brightness 亮度(-255 - 255)
  * @param {boolean} params.inversionColor 是否反色
  */
 export async function handleMonitorColorEuclid(
   imgData,
-  { contrast, brightness, inversionColor },
+  { hueShift, contrast, brightness, inversionColor },
   _progress
 ) {
   const d = (259 * (contrast + 255)) / (255 * (259 - contrast));
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(() => {
       let [r, g, b] = [imgData.data[i], imgData.data[i + 1], imgData.data[i + 2]];
+      // 色相偏移
+      if (hueShift != 0) {
+        let [h, s, l] = rgbToHsl(r, g, b);
+        h = (h + hueShift + 360) % 360;
+        [r, g, b] = hslToRgb(h, s, l);
+      }
       // 调整对比度
       if (contrast != 0) {
         r = truncateColor((r - 128) * d + 128);
@@ -286,4 +293,100 @@ function truncateColor(value) {
   if (value < 0) value = 0;
   else if (value > 255) value = 255;
   return value;
+}
+
+export function hexToRgb(hex) {
+  let r = parseInt(hex.slice(1, 3), 16);
+  let g = parseInt(hex.slice(3, 5), 16);
+  let b = parseInt(hex.slice(5, 7), 16);
+  return [r, g, b];
+}
+
+export function rgbToHex(r, g, b) {
+  return "#" + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+}
+
+export function rgbToHsl(r, g, b) {
+  r = r / 255;
+  g = g / 255;
+  b = b / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  var d, h, s;
+
+  if (max !== min) {
+    d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) {
+      h = (g - b) / d + (g < b ? 6 : 0);
+    } else if (max === g) {
+      h = (b - r) / d + 2;
+    } else {
+      h = (r - g) / d + 4;
+    }
+    h = h / 6;
+  } else {
+    h = s = 0;
+  }
+  return [Math.round(h * 360), Math.round(s * 100), Math.round(l * 100)];
+}
+
+/**
+ * @param {number} h 色相 0-360
+ * @param {number} s 饱和度 0-100
+ * @param {number} l 亮度 0-100
+ */
+export function hslToRgb(h, s, l) {
+  h = h / 360;
+  s = s / 100;
+  l = l / 100;
+  var v, min, sv, six, fract, vsfract, r, g, b;
+  if (l <= 0.5) {
+    v = l * (1 + s);
+  } else {
+    v = l + s - l * s;
+  }
+  if (v === 0) {
+    return [0, 0, 0];
+  }
+  min = 2 * l - v;
+  sv = (v - min) / v;
+  h = 6 * h;
+  six = Math.floor(h);
+  fract = h - six;
+  vsfract = v * sv * fract;
+  switch (six) {
+    case 1:
+      r = v - vsfract;
+      g = v;
+      b = min;
+      break;
+    case 2:
+      r = min;
+      g = v;
+      b = min + vsfract;
+      break;
+    case 3:
+      r = min;
+      g = v - vsfract;
+      b = v;
+      break;
+    case 4:
+      r = min + vsfract;
+      g = min;
+      b = v;
+      break;
+    case 5:
+      r = v;
+      g = min;
+      b = v - vsfract;
+      break;
+    default:
+      r = v;
+      g = min + vsfract;
+      b = min;
+      break;
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
 }

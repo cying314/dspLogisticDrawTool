@@ -75,6 +75,7 @@
                 <li>宽：{{config.width}}</li>
                 <li>高：{{config.height}}</li>
                 <li>算法：{{ALL_RENDER_MODE[config.form.renderMode]}}</li>
+                <li v-if="config.form.renderMode=='monitor_color_euclid'">色相偏移：{{config.form.hueShift}}</li>
                 <li v-if="['bw','monitor_bw'].includes(config.form.renderMode)">阈值：{{config.form.threshold}}</li>
                 <li v-else>对比度：{{config.form.contrast}}</li>
                 <li v-if="config.form.renderMode!='bw'">亮度：{{config.form.brightness}}</li>
@@ -123,6 +124,12 @@
               <el-radio-group v-model="settingForm.renderMode">
                 <el-radio v-for="k in Object.keys(renderOptions)" :key="k" :label="k">{{renderOptions[k]}}</el-radio>
               </el-radio-group>
+            </el-form-item>
+            <el-form-item v-if="settingForm.renderMode=='monitor_color_euclid'" label="色相偏移：" prop="hueShift" :rules="rules.changeNotNull">
+              <div class="sliderWrap">
+                <el-slider v-model="settingForm.hueShift" :min="-180" :max="180" :marks="{0:'0'}"></el-slider>
+                <span>{{settingForm.hueShift}}</span>
+              </div>
             </el-form-item>
             <el-form-item label="阈值：" v-if="['bw','monitor_bw'].includes(settingForm.renderMode)" prop="threshold" :rules="rules.changeNotNull">
               <div class="sliderWrap">
@@ -266,6 +273,7 @@ export default {
        * @property {number} scale 宽高缩放
        *
        * @property {string} renderMode 渲染模式 @see RENDER_MODE
+       * @property {number} hueShift 色相偏移
        * @property {number} threshold 黑白阈值
        * @property {number} contrast 对比度
        * @property {number} brightness 亮度
@@ -287,6 +295,7 @@ export default {
         comHeight: null,
         scale: 1,
         renderMode: "gray",
+        hueShift: 0,
         threshold: 128,
         contrast: 0,
         brightness: 0,

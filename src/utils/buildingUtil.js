@@ -1,5 +1,5 @@
 import * as ImageUtil from "./imageUtil.js";
-import { grayColorIndexMap, colorIndexMap, rgbToHex } from "@/data/monitorColor.js";
+import { grayColorIndexMap, colorIndexMap } from "@/data/monitorColor.js";
 
 /**
  * @typedef {Object} BuildingItem
@@ -355,7 +355,7 @@ async function generateMonitorColorScreen(imgData, config, _progress) {
       let x = (width - ((i / 4) % width) - 1) * space;
       let y = Math.floor(i / 4 / width) * space;
       let [r, g, b] = imgData.data.slice(i, i + 3);
-      let hex = rgbToHex(r, g, b);
+      let hex = ImageUtil.rgbToHex(r, g, b);
       let colorIndex;
       if (colorIndexMap.has(hex)) {
         colorIndex = colorIndexMap.get(hex);
