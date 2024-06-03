@@ -20,7 +20,7 @@ export async function textToBase64({
   span.style.fontSize = fontSize + "pt";
   span.style.lineHeight = lineHeight + "pt";
   span.style.color = color;
-  span.style.fontFamily = fontFamily;
+  span.style.fontFamily = "'" + fontFamily + "'";
 
   span.style.whiteSpace = "pre";
   span.style.position = "fixed";

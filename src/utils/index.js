@@ -109,7 +109,6 @@ export function _prompt(title, inputValue, otherOption = {}) {
   }).then(({ value }) => value);
 }
 
-
 /**
  * 保存字符串为txt文件
  * @param {string} content 内容字符串
@@ -137,4 +136,3 @@ export function findClosestNum(arr, target) {
   }
   return arr[right];
 }
-

@@ -47,9 +47,12 @@
               <el-form-item label="颜色：">
                 <el-color-picker v-model="importForm.color" @change="changColor"></el-color-picker>
               </el-form-item>
-              <!-- <el-form-item label="字体：">
-                <el-button size="mini" icon="el-icon-upload2">上传字体</el-button>
-              </el-form-item>-->
+              <el-form-item label="字体：">
+                <el-select v-model="importForm.fontFamily" filterable allow-create default-first-option @change="changeFontFamily">
+                  <el-option v-for="font in FONTS" :key="font.en" :label="`${font.ch} ${font.en}`" :value="font.en"></el-option>
+                </el-select>
+                <i style="margin-left:5px;color:var(--color-primary);cursor:help;" class="el-icon-question" :title="`可输入任意你电脑中安装的字体名称，回车插入使用`"></i>
+              </el-form-item>
             </el-form>
             <el-button type="primary" size="small" @click="textToImage">生成图片</el-button>
           </template>
@@ -205,6 +208,7 @@ import * as Parser from "@/utils/parser";
 import * as Util from "@/utils/index.js";
 import * as ImageUtil from "@/utils/imageUtil.js";
 import * as BuildingUtil from "@/utils/buildingUtil.js";
+import * as FontUtil from "@/utils/fontUtil.js";
 const MIN_SIZE = 1;
 const MAX_SIZE = 1000;
 const DEFAULT_WIDTH = 50; // 图片默认生成宽度
@@ -234,6 +238,7 @@ export default {
   },
   data() {
     return {
+      FONTS: FontUtil.fonts,
       MIN_SIZE: MIN_SIZE,
       MAX_SIZE: MAX_SIZE,
       ALL_RENDER_MODE: ALL_RENDER_MODE,
@@ -244,6 +249,7 @@ export default {
         fontSize: 9,
         textAlign: "left",
         color: "#000",
+        fontFamily: FontUtil.fonts[0]?.en,
         width: null, // 初始图像大小
         height: null,
         image: null, // 原始图像 Image
@@ -505,14 +511,19 @@ export default {
         this.$set(this.importForm, "color", "#000000");
       }
     },
+    changeFontFamily(val) {
+      if (val && !FontUtil.isSupportFontFamily(val)) {
+        return Util._warn(`本机未安装该字体：${val}，请核对字体名称！`);
+      }
+    },
     textToImage() {
-      let { text, fontSize, textAlign, color } = this.importForm;
+      let { text, fontSize, textAlign, color, fontFamily } = this.importForm;
       if (!text) {
         return Util._warn("请输入文本！");
       }
       this.init();
       this.showLoading();
-      ImageUtil.textToBase64({ content: text, fontSize, textAlign, color })
+      ImageUtil.textToBase64({ content: text, fontSize, textAlign, color, fontFamily })
         .then((base64) => {
           const image = new Image();
           image.src = base64;
