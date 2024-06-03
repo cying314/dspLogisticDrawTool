@@ -40,15 +40,43 @@ export async function textToBase64({
 }
 
 /**
- * 生成 黑白图
- * @param {number} threshold 阈值(0 - 255)
+ * 根据配置处理图像渲染
+ * @param {number[]} imgData 图像数据
+ * @param {SettingForm} settingForm 配置项
+ * @param {function} _progress 异步进度条回调
  */
-export async function handleBlackWhite(imgData, threshold, _progress) {
+export function renderImageData(imgData, settingForm, _progress) {
+  const renderMode = settingForm.renderMode;
+  if (renderMode == "bw") {
+    return handleBlackWhite(imgData, settingForm, _progress);
+  } else if (renderMode == "gray") {
+    return handleGray(imgData, settingForm, _progress);
+  } else if (renderMode == "monitor_bw") {
+    return handleMonitorBlackWhite(imgData, settingForm, _progress);
+  } else if (renderMode == "monitor_gray") {
+    return handleMonitorGray(imgData, settingForm, _progress);
+  } else if (renderMode == "monitor_color_euclid") {
+    return handleMonitorColorEuclid(imgData, settingForm, _progress);
+  }
+}
+
+/**
+ * 生成 黑白图
+ * @param {number[]} imgData 图像数据
+ * @param {Object} params
+ * @param {number} params.threshold 阈值(0 - 255)
+ * @param {boolean} params.inversionColor 是否反色
+ */
+export async function handleBlackWhite(imgData, { threshold, inversionColor }, _progress) {
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(
       () => {
         // 获取灰度
         var gray = getGray(imgData.data[i], imgData.data[i + 1], imgData.data[i + 2]);
+        // 反色
+        if (inversionColor) {
+          gray = 255 - gray;
+        }
         // 基于阈值转为黑白
         imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = gray > threshold ? 255 : 0;
       },
@@ -60,10 +88,13 @@ export async function handleBlackWhite(imgData, threshold, _progress) {
 
 /**
  * 生成 灰度图
- * @param {number} contrast 对比度(-255 - 255)
- * @param {number} brightness 亮度度(-255 - 255)
+ * @param {number[]} imgData 图像数据
+ * @param {Object} params
+ * @param {number} params.contrast 对比度(-255 - 255)
+ * @param {number} params.brightness 亮度(-255 - 255)
+ * @param {boolean} params.inversionColor 是否反色
  */
-export async function handleGray(imgData, contrast, brightness, _progress) {
+export async function handleGray(imgData, { contrast, brightness, inversionColor }, _progress) {
   const d = (259 * (contrast + 255)) / (255 * (259 - contrast));
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(() => {
@@ -77,6 +108,10 @@ export async function handleGray(imgData, contrast, brightness, _progress) {
       if (brightness != 0) {
         gray = truncateColor(gray + brightness);
       }
+      // 反色
+      if (inversionColor) {
+        gray = 255 - gray;
+      }
       imgData.data[i] = imgData.data[i + 1] = imgData.data[i + 2] = gray;
     }, Math.round((i / imgData.data.length) * 100));
   }
@@ -84,10 +119,17 @@ export async function handleGray(imgData, contrast, brightness, _progress) {
 
 /**
  * 生成 黑白图（流速器）
- * @param {number} threshold 阈值(0 - 255)
- * @param {number} brightness 亮度度(-255 - 255)
+ * @param {number[]} imgData 图像数据
+ * @param {Object} params
+ * @param {number} params.threshold 阈值(0 - 255)
+ * @param {number} params.brightness 亮度(-255 - 255)
+ * @param {boolean} params.inversionColor 是否反色
  */
-export async function handleMonitorBlackWhite(imgData, threshold, brightness, _progress) {
+export async function handleMonitorBlackWhite(
+  imgData,
+  { threshold, brightness, inversionColor },
+  _progress
+) {
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(
       () => {
@@ -98,6 +140,10 @@ export async function handleMonitorBlackWhite(imgData, threshold, brightness, _p
         // 调整亮度
         if (brightness != 0) {
           gray = truncateColor(gray + brightness);
+        }
+        // 反色
+        if (inversionColor) {
+          gray = 255 - gray;
         }
         // 转为颜色表中的灰度
         gray = findClosestGary(gray);
@@ -111,10 +157,17 @@ export async function handleMonitorBlackWhite(imgData, threshold, brightness, _p
 
 /**
  * 根据 流速器灰度颜色表索引 生成灰度图
- * @param {number} contrast 对比度(-255 - 255)
- * @param {number} brightness 亮度度(-255 - 255)
+ * @param {number[]} imgData 图像数据
+ * @param {Object} params
+ * @param {number} params.contrast 对比度(-255 - 255)
+ * @param {number} params.brightness 亮度(-255 - 255)
+ * @param {boolean} params.inversionColor 是否反色
  */
-export async function handleMonitorGray(imgData, contrast, brightness, _progress) {
+export async function handleMonitorGray(
+  imgData,
+  { contrast, brightness, inversionColor },
+  _progress
+) {
   const d = (259 * (contrast + 255)) / (255 * (259 - contrast));
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(
@@ -128,6 +181,10 @@ export async function handleMonitorGray(imgData, contrast, brightness, _progress
         // 调整亮度
         if (brightness != 0) {
           gray = truncateColor(gray + brightness);
+        }
+        // 反色
+        if (inversionColor) {
+          gray = 255 - gray;
         }
         // 转为颜色表中的灰度
         gray = findClosestGary(gray);
@@ -175,10 +232,17 @@ export function closestColorIndex([r, g, b]) {
 
 /**
  * 根据 流速器全颜色表索引 生成仿色（欧几里得距离）
- * @param {number} contrast 对比度(-255 - 255)
- * @param {number} brightness 亮度度(-255 - 255)
+ * @param {number[]} imgData 图像数据
+ * @param {Object} params
+ * @param {number} params.contrast 对比度(-255 - 255)
+ * @param {number} params.brightness 亮度(-255 - 255)
+ * @param {boolean} params.inversionColor 是否反色
  */
-export async function handleMonitorColorEuclid(imgData, contrast, brightness, _progress) {
+export async function handleMonitorColorEuclid(
+  imgData,
+  { contrast, brightness, inversionColor },
+  _progress
+) {
   const d = (259 * (contrast + 255)) / (255 * (259 - contrast));
   for (let i = 0; i < imgData.data.length; i += 4) {
     await _progress(() => {
@@ -194,6 +258,12 @@ export async function handleMonitorColorEuclid(imgData, contrast, brightness, _p
         r = truncateColor(r + brightness);
         g = truncateColor(g + brightness);
         b = truncateColor(b + brightness);
+      }
+      // 反色
+      if (inversionColor) {
+        r = 255 - r;
+        g = 255 - g;
+        b = 255 - b;
       }
       // 找到颜色表中最接近目标颜色的颜色索引
       const colorIndex = closestColorIndex([r, g, b]);

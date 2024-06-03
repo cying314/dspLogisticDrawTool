@@ -33,7 +33,7 @@
             <el-input type="textarea" v-model="importForm.text" :autosize="{ minRows: 5, maxRows: 10 }" placeholder="请输入文本"></el-input>
             <el-form class="importForm" inline size="small">
               <el-form-item label="字号：">
-                <el-select v-model="importForm.fontSize">
+                <el-select v-model="importForm.fontSize" filterable default-first-option>
                   <el-option v-for="num in 30" :key="num" :value="num" :label="num+'pt'"></el-option>
                 </el-select>
               </el-form-item>
@@ -78,6 +78,7 @@
                 <li v-if="['bw','monitor_bw'].includes(config.form.renderMode)">阈值：{{config.form.threshold}}</li>
                 <li v-else>对比度：{{config.form.contrast}}</li>
                 <li v-if="config.form.renderMode!='bw'">亮度：{{config.form.brightness}}</li>
+                <li v-if="config.form.inversionColor">反色</li>
               </ul>
               <ul class="configItems">
                 <li>生成类型：{{GENERATE_MODE[config.form.generateMode]}}</li>
@@ -140,6 +141,9 @@
                 <el-slider v-model="settingForm.brightness" :min="-255" :max="255" :marks="{0:'0'}"></el-slider>
                 <span>{{settingForm.brightness}}</span>
               </div>
+            </el-form-item>
+            <el-form-item label="反色：" prop="inversionColor">
+              <el-switch v-model="settingForm.inversionColor"></el-switch>
             </el-form-item>
             <el-divider content-position="left">生成方案</el-divider>
             <el-form-item label="生成类型：" prop="generateMode" :rules="rules.changeNotNull">
@@ -265,6 +269,7 @@ export default {
        * @property {number} threshold 黑白阈值
        * @property {number} contrast 对比度
        * @property {number} brightness 亮度
+       * @property {number} inversionColor 反色
        *
        * @property {string} generateMode 生成模式 @see GENERATE_MODE
        * @property {number} z 生成高度
@@ -285,6 +290,7 @@ export default {
         threshold: 128,
         contrast: 0,
         brightness: 0,
+        inversionColor: false,
         generateMode: "belt_horiz",
         angle: 90,
         z: 0,
@@ -301,6 +307,7 @@ export default {
         form: null,
         width: null,
         height: null,
+        otherOptions: [],
       },
       beforeBase64: null,
       afterBase64: null,
@@ -571,7 +578,6 @@ export default {
       this.showLoading("渲染中", true);
       try {
         const image = this.importForm.image;
-        const { renderMode, threshold, contrast, brightness } = this.config.form;
         let canvas = document.createElement("canvas");
         let context = canvas.getContext("2d");
         let [w, h] = [this.config.width, this.config.height];
@@ -586,18 +592,7 @@ export default {
 
         // after
         let imgData = context.getImageData(0, 0, w, h);
-        const _progress = this.handleLoadingProgress;
-        if (renderMode == "bw") {
-          await ImageUtil.handleBlackWhite(imgData, threshold, _progress);
-        } else if (renderMode == "gray") {
-          await ImageUtil.handleGray(imgData, contrast, brightness, _progress);
-        } else if (renderMode == "monitor_bw") {
-          await ImageUtil.handleMonitorBlackWhite(imgData, threshold, brightness, _progress);
-        } else if (renderMode == "monitor_gray") {
-          await ImageUtil.handleMonitorGray(imgData, contrast, brightness, _progress);
-        } else if (renderMode == "monitor_color_euclid") {
-          await ImageUtil.handleMonitorColorEuclid(imgData, contrast, brightness, _progress);
-        }
+        await ImageUtil.renderImageData(imgData, this.config.form, this.handleLoadingProgress);
         context.putImageData(imgData, 0, 0);
         this.afterBase64 = canvas.toDataURL();
         this.preview();

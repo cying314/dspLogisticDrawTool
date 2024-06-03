@@ -16,9 +16,17 @@ import { grayColorIndexMap, colorIndexMap, rgbToHex } from "@/data/monitorColor.
  */
 
 /**
+ * @typedef {Object} Config 生成配置
+ * @property {SettingForm} form 配置项
+ * @property {number} width 渲染图像宽度
+ * @property {number} height 渲染图像高度
+ */
+
+/**
  * 根据配置生成蓝图对象
- * @param {ImageData} imgData 图片数据
- * @param {SettingForm} config 生成配置
+ * @param {ImageData} imgData 图像数据
+ * @param {Config} config 生成配置
+ * @param {function} _progress 异步进度条回调
  */
 export async function generateBlueprint(imgData, config, _progress) {
   const blueprint = {
@@ -52,8 +60,9 @@ export async function generateBlueprint(imgData, config, _progress) {
 
 /**
  * 根据配置生成蓝图建筑列表
- * @param {ImageData} imgData 图片数据
- * @param {SettingForm} config 生成配置
+ * @param {ImageData} imgData 图像数据
+ * @param {Config} config 生成配置
+ * @param {function} _progress 异步进度条回调
  */
 function createbuildings(imgData, config, _progress) {
   const generateMode = config.form.generateMode;
