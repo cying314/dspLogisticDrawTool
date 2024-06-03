@@ -1,3 +1,8 @@
+const path = require("path");
+function resolve(dir) {
+  return path.join(__dirname, dir);
+}
+const name = "DSP物流绘图生成器v1.0";
 module.exports = {
   css: {
     loaderOptions: {
@@ -9,6 +14,14 @@ module.exports = {
   publicPath: "./",
   productionSourceMap: false,
   outputDir: "dist",
+  configureWebpack: {
+    name: name,
+    resolve: {
+      alias: {
+        "@": resolve("src"),
+      },
+    },
+  },
   chainWebpack: (config) => {
     config.module
       .rule("images")

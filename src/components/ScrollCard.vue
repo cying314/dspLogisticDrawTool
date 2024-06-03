@@ -10,6 +10,9 @@
           </el-menu-item>
         </el-menu>
       </el-scrollbar>
+      <div class="navRight">
+        <slot name="navRight"></slot>
+      </div>
     </div>
     <div ref="scrollWrap" class="scrollWrap" @scroll="onScroll">
       <div class="content">
@@ -140,6 +143,9 @@ export default {
   background-color: #fff;
   .navScrollBar {
     width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     .menuBar {
       display: flex;
       user-select: none;
@@ -148,6 +154,9 @@ export default {
         height: 40px;
         line-height: 35px;
       }
+    }
+    .navRight {
+      flex-shrink: 0;
     }
   }
   .scrollWrap {

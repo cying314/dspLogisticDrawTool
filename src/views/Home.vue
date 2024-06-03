@@ -2,6 +2,22 @@
   <div class="main">
     <div class="wrap">
       <ScrollCard>
+        <template #navRight>
+          <div class="navRight">
+            <a class="item hover" href="https://github.com/cying314/dspLogisticDrawTool" target="_blank">
+              <img :src="require('@/assets/images/github.png')" />
+              <span style="width:40px">Github</span>
+            </a>
+            <a class="item hover" href="https://gitee.com/cying314/dsp-logistic-draw-tool" target="_blank">
+              <img :src="require('@/assets/images/gitee.png')" />
+              <span style="width:31px">Gitee</span>
+            </a>
+            <a class="item" href="https://space.bilibili.com/34117233" target="_blank" title="跳转作者B站主页">
+              <img :src="require('@/assets/images/bilibili.png')" />
+              <span>晨隐_</span>
+            </a>
+          </div>
+        </template>
         <ScrollCardItem name="导入原图">
           <el-radio-group style="margin-bottom:10px" v-model="importForm.importType" @change="changeImportType">
             <el-radio label="image">上传图片</el-radio>
@@ -756,13 +772,6 @@ export default {
       if (!val) return 0;
       return val.toFixed(2);
     },
-    jump(index) {
-      if (index == "联系作者") {
-        return window.open("https://space.bilibili.com/34117233");
-      } else if (index == "查看更新") {
-        return window.open("");
-      }
-    },
   },
 };
 </script>
@@ -770,6 +779,39 @@ export default {
 <style lang="scss" scoped>
 .main {
   background: #f0f2f5;
+  .navRight {
+    display: flex;
+    align-items: center;
+    margin-right: 5px;
+    .item {
+      font-size: 12px;
+      color: #999;
+      text-decoration: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 5px;
+      img {
+        width: 16px;
+        height: 16px;
+      }
+      span {
+        margin-left: 5px;
+      }
+      &.hover span {
+        display: inline-block;
+        overflow: hidden;
+        transition: width 0.2s ease-in-out;
+      }
+      &.hover:not(:hover) span {
+        width: 0 !important;
+      }
+    }
+    .item:hover {
+      color: $--color-primary-dark;
+      text-decoration: underline;
+    }
+  }
   .wrap {
     max-width: 1000px;
     margin: auto;
